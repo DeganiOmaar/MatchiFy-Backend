@@ -17,9 +17,12 @@ constructor(@InjectModel(User.name) private userModel: Model<User>) {}
     return this.userModel.findOne({ email }).exec();
   }
 
+  async findById(id: string): Promise<User | null> {
+    return this.userModel.findById(id);
+  }
+
   async save(user: User): Promise<User> {
     return user.save();
   }
-
 
 }
