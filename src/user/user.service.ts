@@ -1,12 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from './schemas/user.schema';
 import { Model } from 'mongoose';
-
 @Injectable()
 export class UserService {
-
-constructor(@InjectModel(User.name) private userModel: Model<User>) {}
+  constructor(@InjectModel(User.name) private userModel: Model<User>) {}
 
   async create(data: Partial<User>): Promise<User> {
     const user = new this.userModel(data);
@@ -25,4 +23,18 @@ constructor(@InjectModel(User.name) private userModel: Model<User>) {}
     return user.save();
   }
 
+  // ✅ Nouvelle méthode pour mettre à jour le mot de passe
+  async updatePassword(id: string, newPassword: string): Promise<User> {
+  const updatedUser = await this.userModel.findByIdAndUpdate(
+    id,
+    { password: newPassword },
+    { new: true }
+  );
+
+  if (!updatedUser) {
+    throw new NotFoundException('Utilisateur non trouvé');
+  }
+
+  return updatedUser;
+}
 }
