@@ -25,4 +25,12 @@ constructor(@InjectModel(User.name) private userModel: Model<User>) {}
     return user.save();
   }
 
+  async findByResetCode(code: string): Promise<User | null> {
+    return this.userModel.findOne({ resetCode: code }).exec();
+  }
+
+  async findByVerifiedEmail(email: string): Promise<User | null> {
+    return this.userModel.findOne({ verifiedEmail: email }).exec();
+  }
+
 }

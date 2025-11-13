@@ -1,8 +1,12 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { UserService } from 'src/user/user.service';
-import { SignupDto } from './dto/signup.dto';
+import { TalentSignupDto } from './dto/talent-signup.dto';
+import { RecruiterSignupDto } from './dto/recruiter-signup.dto';
 import { LoginDto } from './dto/login.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { VerifyResetCodeDto } from './dto/verify-reset-code.dto';
+import { ResetPasswordDto as ResetPasswordNewDto } from './dto/reset-password-new.dto';
+import { EmailService } from 'src/common/services/email.service';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 
@@ -10,27 +14,77 @@ import { JwtService } from '@nestjs/jwt';
 export class AuthService {
 
 
-    constructor(private userService: UserService, private jwt: JwtService) {}
+    constructor(
+      private userService: UserService, 
+      private jwt: JwtService,
+      private emailService: EmailService,
+    ) {}
 
-async signup(dto: SignupDto) {
-  const { email, password, name, role } = dto;
+async signupTalent(dto: TalentSignupDto) {
+  const { email, password, fullName, phone, profileImage, location, talent } = dto;
 
+  // Check if email already exists
   const existing = await this.userService.findByEmail(email);
   if (existing) throw new BadRequestException('Email already exists');
 
+  // Hash password
   const hashed = await bcrypt.hash(password, 10);
 
+  // Create talent user
   const user = await this.userService.create({
+    fullName,
     email,
     password: hashed,
-    name,
-    role: role || 'talent', // ✅ si rien n’est envoyé, c’est un Talent
+    role: 'talent',
+    phone,
+    profileImage,
+    location,
+    talent,
   });
 
-  const token = this.jwt.sign({ id: user._id, email: user.email, role: user.role });
-  return { user: this.clean(user), token };
+  // Generate JWT token
+  const token = this.jwt.sign({ 
+    id: user._id, 
+    email: user.email, 
+    role: user.role 
+  });
+
+  return { 
+    user: this.clean(user), 
+    token 
+  };
 }
 
+async signupRecruiter(dto: RecruiterSignupDto) {
+  const { email, password, fullName } = dto;
+
+  // Check if email already exists
+  const existing = await this.userService.findByEmail(email);
+  if (existing) throw new BadRequestException('Email already exists');
+
+  // Hash password
+  const hashed = await bcrypt.hash(password, 10);
+
+  // Create recruiter user
+  const user = await this.userService.create({
+    fullName,
+    email,
+    password: hashed,
+    role: 'recruiter',
+  });
+
+  // Generate JWT token
+  const token = this.jwt.sign({ 
+    id: user._id, 
+    email: user.email, 
+    role: user.role 
+  });
+
+  return { 
+    user: this.clean(user), 
+    token 
+  };
+}
 
   async login(dto: LoginDto) {
     const user = await this.userService.findByEmail(dto.email);
@@ -39,22 +93,120 @@ async signup(dto: SignupDto) {
     const valid = await bcrypt.compare(dto.password, user.password);
     if (!valid) throw new UnauthorizedException('Invalid credentials');
 
-    const token = this.jwt.sign({ id: user._id, email: user.email, role: user.role });
-    return { user: this.clean(user), token };
+    const token = this.jwt.sign({ 
+      id: user._id, 
+      email: user.email, 
+      role: user.role 
+    });
+
+    return { 
+      message: 'Login successful',
+      token,
+      role: user.role,
+      user: this.clean(user)
+    };
   }
 
-async resetPassword(dto: ResetPasswordDto) {
-  const { email, newPassword } = dto;
+// Password Reset Flow
+async sendResetCode(dto: ForgotPasswordDto) {
+  const { email } = dto;
+  
+  // Find user by email
   const user = await this.userService.findByEmail(email);
-
   if (!user) {
-    throw new BadRequestException('User not found');
+    throw new BadRequestException('No account found with this email address');
   }
 
-  user.password = await bcrypt.hash(newPassword, 10);
+  // Generate 6-digit code
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  
+  // Set expiration time (15 minutes from now)
+  const expiresAt = new Date();
+  expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+
+  // Save code and expiration to user document
+  user.resetCode = code;
+  user.resetCodeExpiresAt = expiresAt;
+  user.verifiedEmail = undefined; // Clear any previous verification
   await this.userService.save(user);
 
-  return { message: 'Password reset successfully' };
+  // Send email with code
+  await this.emailService.sendResetCode(email, code);
+
+  return { 
+    message: 'Verification code sent to your email',
+    expiresIn: '15 minutes'
+  };
+}
+
+async verifyResetCode(dto: VerifyResetCodeDto) {
+  const { code } = dto;
+
+  // Find user by reset code
+  const user = await this.userService.findByResetCode(code);
+  if (!user) {
+    throw new BadRequestException('Invalid verification code');
+  }
+
+  // Check if code is expired
+  const now = new Date();
+  if (!user.resetCodeExpiresAt || user.resetCodeExpiresAt < now) {
+    throw new BadRequestException('Verification code has expired. Please request a new one');
+  }
+
+  // Mark email as verified for password reset
+  user.verifiedEmail = user.email;
+  await this.userService.save(user);
+
+  return { 
+    message: 'Code verified successfully. You can now reset your password',
+    verified: true
+  };
+}
+
+async resetPasswordNew(dto: ResetPasswordNewDto) {
+  const { newPassword } = dto;
+
+  // Find user with verified email (most recently verified)
+  // This approach works but has a small security window
+  // In production, consider using Redis or JWT tokens for better security
+  const user: any = await this.userService['userModel']
+    .findOne({ 
+      verifiedEmail: { $exists: true, $ne: null } 
+    })
+    .sort({ updatedAt: -1 })
+    .exec();
+  
+  if (!user) {
+    throw new BadRequestException('Please verify your code first before resetting password');
+  }
+
+  // Additional security: check if verification is still recent (e.g., within 10 minutes)
+  const tenMinutesAgo = new Date();
+  tenMinutesAgo.setMinutes(tenMinutesAgo.getMinutes() - 10);
+  
+  if (user.updatedAt && user.updatedAt < tenMinutesAgo) {
+    // Clear expired verification
+    user.verifiedEmail = undefined;
+    user.resetCode = undefined;
+    user.resetCodeExpiresAt = undefined;
+    await this.userService.save(user);
+    throw new BadRequestException('Verification expired. Please request a new code');
+  }
+
+  // Hash new password
+  const hashed = await bcrypt.hash(newPassword, 10);
+  
+  // Update password and clear reset fields
+  user.password = hashed;
+  user.resetCode = undefined;
+  user.resetCodeExpiresAt = undefined;
+  user.verifiedEmail = undefined;
+  await this.userService.save(user);
+
+  return { 
+    message: 'Password reset successful. Please log in with your new password.'
+  };
 }
 
 

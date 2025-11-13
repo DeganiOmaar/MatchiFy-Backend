@@ -2,24 +2,28 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
+export interface UserDocument extends User, Document {
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 @Schema({ timestamps: true })
 export class User extends Document {
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true })
+  fullName: string;
+
+  @Prop({ required: true, unique: true, index: true })
   email: string;
 
   @Prop({ required: true })
   password: string;
 
-@Prop({
-  type: String,
-  enum: ['talent', 'recruiter'], // ✅ deux rôles possibles
-  default: 'talent',
-})
-role: string;
-
-
-  @Prop()
-  name?: string;
+  @Prop({
+    type: String,
+    enum: ['talent', 'recruiter'],
+    required: true,
+  })
+  role: string;
 
   @Prop()
   phone?: string;
@@ -29,6 +33,23 @@ role: string;
 
   @Prop()
   bannerImage?: string;
+
+  // Talent-specific fields
+  @Prop()
+  location?: string;
+
+  @Prop()
+  talent?: string;
+
+  // Password reset fields
+  @Prop()
+  resetCode?: string;
+
+  @Prop()
+  resetCodeExpiresAt?: Date;
+
+  @Prop()
+  verifiedEmail?: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
