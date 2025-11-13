@@ -6,7 +6,7 @@ import { UpdateTalentDto } from './dto/update-talent.dto';
 export class TalentService {
   constructor(private readonly userService: UserService) {}
 
-  // 🔍 Lire le profil du talent
+  // 🔍 Lire le profil du talent connecté
   async getProfile(userId: string) {
     const user = await this.userService.findById(userId);
     if (!user) throw new NotFoundException('Talent not found');
@@ -15,19 +15,10 @@ export class TalentService {
     return safeUser;
   }
 
-  // ✏️ Mettre à jour les infos du profil
-  async updateProfile(userId: string, updateDto: UpdateTalentDto) {
-    const user = await this.userService.findById(userId);
-    if (!user) throw new NotFoundException('Talent not found');
+  // ✏️ Modifier les coordonnées du talent
 
-    Object.assign(user, updateDto);
-    await this.userService.save(user);
 
-    const { password, ...safeUser } = user.toObject();
-    return { message: 'Profile updated successfully', user: safeUser };
-  }
-
-  // 📸 Mettre à jour la photo de profil
+  // 📸 Upload de la photo de profil
   async updateProfileImage(userId: string, imageUrl: string) {
     const user = await this.userService.findById(userId);
     if (!user) throw new NotFoundException('Talent not found');
@@ -35,10 +26,12 @@ export class TalentService {
     user.profileImage = imageUrl;
     await this.userService.save(user);
 
-    return { message: 'Profile image updated', profileImage: imageUrl };
+    // ✅ Retourne le profil complet mis à jour
+    const { password, ...safeUser } = user.toObject();
+    return safeUser;
   }
 
-  // 🖼️ Mettre à jour la bannière
+  // 🖼️ Upload de la bannière
   async updateBannerImage(userId: string, bannerUrl: string) {
     const user = await this.userService.findById(userId);
     if (!user) throw new NotFoundException('Talent not found');
@@ -46,6 +39,8 @@ export class TalentService {
     user.bannerImage = bannerUrl;
     await this.userService.save(user);
 
-    return { message: 'Banner updated', bannerImage: bannerUrl };
+    // ✅ Retourne le profil complet mis à jour
+    const { password, ...safeUser } = user.toObject();
+    return safeUser;
   }
 }

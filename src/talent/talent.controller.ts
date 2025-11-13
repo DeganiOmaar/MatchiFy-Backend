@@ -31,10 +31,7 @@ export class TalentController {
   }
 
   // ✏️ Modifier les coordonnées du talent
-  @Patch('update')
-  async updateProfile(@Req() req, @Body() dto: UpdateTalentDto) {
-    return this.talentService.updateProfile(req.user.id, dto);
-  }
+
 
   // 📸 Upload de la photo de profil
   @Post('upload-profile')
