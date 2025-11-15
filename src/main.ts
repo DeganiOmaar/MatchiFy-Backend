@@ -25,6 +25,7 @@ async function bootstrap() {
     .setVersion('1.0')
     .addTag('auth', 'Authentication endpoints')
     .addTag('talent', 'Talent management')
+    .addTag('recruiter', 'Recruiter management')
     .addTag('user', 'User management')
     .addBearerAuth()
     .build();
