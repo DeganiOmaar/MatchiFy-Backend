@@ -18,7 +18,7 @@ async function bootstrap() {
     }),
   );
 
-  // Swagger configuration
+  // Swagger configuration 
   const config = new DocumentBuilder()
     .setTitle('MatchiFy API')
     .setDescription('Recruitment platform API for talents and recruiters')
