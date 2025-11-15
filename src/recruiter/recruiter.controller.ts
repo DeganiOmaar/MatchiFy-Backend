@@ -62,6 +62,11 @@ export class RecruiterController {
           example: 'San Francisco, CA',
           description: 'Location/address',
         },
+        description: {
+          type: 'string',
+          example: 'Experienced tech recruiter specializing in software engineering roles',
+          description: 'Profile description or bio',
+        },
         profileImage: {
           type: 'string',
           format: 'binary',
@@ -83,6 +88,7 @@ export class RecruiterController {
           role: 'recruiter',
           phone: '+1234567890',
           location: 'San Francisco, CA',
+          description: 'Experienced tech recruiter specializing in software engineering roles',
           profileImage: 'uploads/profile/profile-1731504922456-123456789.jpg',
           createdAt: '2025-11-13T12:35:22.456Z',
           updatedAt: '2025-11-13T15:20:10.123Z',

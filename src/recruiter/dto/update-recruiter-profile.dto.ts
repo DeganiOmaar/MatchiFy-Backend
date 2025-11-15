@@ -35,6 +35,14 @@ export class UpdateRecruiterProfileDto {
   location?: string;
 
   @ApiPropertyOptional({
+    description: 'Profile description or bio',
+    example: 'Experienced tech recruiter specializing in software engineering roles',
+  })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({
     type: 'string',
     format: 'binary',
     description: 'Profile image file (PNG, JPG, JPEG only)',

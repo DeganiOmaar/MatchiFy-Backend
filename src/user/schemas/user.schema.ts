@@ -41,6 +41,10 @@ export class User extends Document {
   @Prop()
   talent?: string;
 
+  // Profile description
+  @Prop()
+  description?: string;
+
   // Password reset fields
   @Prop()
   resetCode?: string;

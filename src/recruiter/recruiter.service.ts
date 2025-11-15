@@ -50,6 +50,10 @@ export class RecruiterService {
       updateData.location = updateDto.location;
     }
 
+    if (updateDto.description !== undefined) {
+      updateData.description = updateDto.description;
+    }
+
     // If profile image was uploaded, add the path
     if (profileImagePath) {
       updateData.profileImage = profileImagePath;
