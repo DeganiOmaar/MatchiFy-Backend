@@ -1,43 +1,238 @@
 import {
   Controller,
   Get,
-  Patch,
+  Put,
   Post,
   Body,
-  Req,
+  Request,
   UseGuards,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { TalentService } from './talent.service';
-import { UpdateTalentDto } from './dto/update-talent.dto';
+import { UpdateTalentProfileDto } from './dto/update-talent-profile.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { profileImageUploadOptions } from '../common/utils/file-upload.config';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
 
+@ApiTags('talent')
 @Controller('talent')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('talent')
 export class TalentController {
   constructor(private readonly talentService: TalentService) {}
 
-  // 🔍 Lire le profil du talent connecté
+  @Get('profile')
+  @Roles('talent')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get talent profile',
+    description: 'Retrieves the profile information of the authenticated talent.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Profile retrieved successfully',
+    schema: {
+      example: {
+        message: 'Profile retrieved successfully',
+        user: {
+          _id: '673ab2c3e8f9a1234567890c',
+          fullName: 'John Doe',
+          email: 'john.doe@example.com',
+          role: 'talent',
+          phone: '+1234567890',
+          location: 'New York, USA',
+          talent: 'Singer',
+          skills: ['Vocal Performance', 'Songwriting', 'Guitar'],
+          description: 'Professional singer with 10 years of experience',
+          portfolioLink: 'https://johndoe-portfolio.com',
+          profileImage: 'uploads/profile/profile-1731504922456-123456789.jpg',
+          createdAt: '2025-11-13T12:35:22.456Z',
+          updatedAt: '2025-11-13T15:20:10.123Z',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing JWT token',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - User is not a talent',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Not Found - User does not exist',
+  })
+  async getProfile(@Request() req: any) {
+    const userId = req.user.id;
+    return this.talentService.getProfile(userId);
+  }
+
+  @Put('profile')
+  @Roles('talent')
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Update talent profile',
+    description:
+      'Allows authenticated talents to update their profile information including full name, email, phone, location, talent category, skills, description, portfolio link, and profile image. Only provided fields will be updated (partial update). Profile image must be PNG, JPG, or JPEG format. Skills array cannot exceed 10 items.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        fullName: {
+          type: 'string',
+          example: 'John Doe',
+          description: 'Full name of the talent',
+        },
+        email: {
+          type: 'string',
+          example: 'john.doe@example.com',
+          description: 'Email address (must be unique)',
+        },
+        phone: {
+          type: 'string',
+          example: '+1234567890',
+          description: 'Phone number',
+        },
+        location: {
+          type: 'string',
+          example: 'New York, USA',
+          description: 'Location/address',
+        },
+        talent: {
+          type: 'string',
+          example: 'Singer',
+          description: 'Talent category (e.g., singer, designer, actor)',
+        },
+        skills: {
+          type: 'array',
+          items: {
+            type: 'string',
+          },
+          example: ['Vocal Performance', 'Songwriting', 'Guitar'],
+          description: 'Array of skills (maximum 10 items)',
+        },
+        description: {
+          type: 'string',
+          example: 'Professional singer with 10 years of experience in live performances',
+          description: 'Profile description or bio',
+        },
+        portfolioLink: {
+          type: 'string',
+          example: 'https://johndoe-portfolio.com',
+          description: 'Portfolio website URL',
+        },
+        profileImage: {
+          type: 'string',
+          format: 'binary',
+          description: 'Profile image file (PNG, JPG, JPEG only)',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Profile updated successfully',
+    schema: {
+      example: {
+        message: 'Profile updated successfully',
+        user: {
+          _id: '673ab2c3e8f9a1234567890c',
+          fullName: 'John Doe',
+          email: 'john.doe@example.com',
+          role: 'talent',
+          phone: '+1234567890',
+          location: 'New York, USA',
+          talent: 'Singer',
+          skills: ['Vocal Performance', 'Songwriting', 'Guitar'],
+          description: 'Professional singer with 10 years of experience',
+          portfolioLink: 'https://johndoe-portfolio.com',
+          profileImage: 'uploads/profile/profile-1731504922456-123456789.jpg',
+          createdAt: '2025-11-13T12:35:22.456Z',
+          updatedAt: '2025-11-13T15:20:10.123Z',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Email already in use, invalid file type, skills array too large, or invalid portfolio URL',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'Email already in use by another account',
+        error: 'Bad Request',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing JWT token',
+    schema: {
+      example: {
+        statusCode: 401,
+        message: 'Unauthorized',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - User is not a talent',
+    schema: {
+      example: {
+        statusCode: 403,
+        message: 'Only talents can access this endpoint',
+        error: 'Forbidden',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Not Found - User does not exist',
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'User not found',
+        error: 'Not Found',
+      },
+    },
+  })
+  @UseInterceptors(FileInterceptor('profileImage', profileImageUploadOptions))
+  async updateProfile(
+    @Request() req: any,
+    @Body() updateDto: UpdateTalentProfileDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    const userId = req.user.id;
+    const profileImagePath = file ? file.path : undefined;
+
+    return this.talentService.updateProfile(userId, updateDto, profileImagePath);
+  }
+
+  // 🔍 Lire le profil du talent connecté (kept for backward compatibility)
   @Get('me')
-  async getProfile(@Req() req) {
+  @Roles('talent')
+  async getProfileLegacy(@Request() req: any) {
     return this.talentService.getProfile(req.user.id);
   }
 
-  // ✏️ Modifier les coordonnées du talent
-  @Patch('update')
-  async updateProfile(@Req() req, @Body() dto: UpdateTalentDto) {
-    return this.talentService.updateProfile(req.user.id, dto);
-  }
-
-  // 📸 Upload de la photo de profil
+  // 📸 Upload de la photo de profil (kept for backward compatibility)
   @Post('upload-profile')
+  @Roles('talent')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
@@ -49,15 +244,14 @@ export class TalentController {
       }),
     }),
   )
-  async uploadProfileImage(@Req() req, @UploadedFile() file: Express.Multer.File) {
+  async uploadProfileImage(@Request() req: any, @UploadedFile() file: Express.Multer.File) {
     const imageUrl = `/uploads/profile/${file.filename}`;
     return this.talentService.updateProfileImage(req.user.id, imageUrl);
-
-
   }
 
-  // 🖼️ Upload de la bannière
+  // 🖼️ Upload de la bannière (kept for backward compatibility)
   @Post('upload-banner')
+  @Roles('talent')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
@@ -69,8 +263,8 @@ export class TalentController {
       }),
     }),
   )
-  async uploadBanner(@Req() req, @UploadedFile() file: Express.Multer.File) {
+  async uploadBanner(@Request() req: any, @UploadedFile() file: Express.Multer.File) {
     const bannerUrl = `/uploads/banner/${file.filename}`;
-return this.talentService.updateBannerImage(req.user.id, bannerUrl);
+    return this.talentService.updateBannerImage(req.user.id, bannerUrl);
   }
 }

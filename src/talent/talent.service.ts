@@ -1,36 +1,142 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { UserService } from '../user/user.service';
-import { UpdateTalentDto } from './dto/update-talent.dto';
+import { UpdateTalentProfileDto } from './dto/update-talent-profile.dto';
 
 @Injectable()
 export class TalentService {
   constructor(private readonly userService: UserService) {}
 
-  // 🔍 Lire le profil du talent
+  /**
+   * Get talent profile
+   * Returns all talent profile information
+   */
   async getProfile(userId: string) {
+    // Find the user
     const user = await this.userService.findById(userId);
-    if (!user) throw new NotFoundException('Talent not found');
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
 
-    const { password, ...safeUser } = user.toObject();
-    return safeUser;
+    // Verify user is a talent
+    if (user.role !== 'talent') {
+      throw new ForbiddenException('Only talents can access this endpoint');
+    }
+
+    // Return user without password
+    const { password, ...userWithoutPassword } = user.toObject();
+    return {
+      message: 'Profile retrieved successfully',
+      user: userWithoutPassword,
+    };
   }
 
-  // ✏️ Mettre à jour les infos du profil
-  async updateProfile(userId: string, updateDto: UpdateTalentDto) {
+  /**
+   * Update talent profile
+   * Supports partial updates - only provided fields will be updated
+   */
+  async updateProfile(
+    userId: string,
+    updateDto: UpdateTalentProfileDto,
+    profileImagePath?: string,
+  ) {
+    // Find the user
     const user = await this.userService.findById(userId);
-    if (!user) throw new NotFoundException('Talent not found');
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
 
-    Object.assign(user, updateDto);
-    await this.userService.save(user);
+    // Verify user is a talent
+    if (user.role !== 'talent') {
+      throw new ForbiddenException('Only talents can access this endpoint');
+    }
 
-    const { password, ...safeUser } = user.toObject();
-    return { message: 'Profile updated successfully', user: safeUser };
+    // Prepare update data
+    const updateData: any = {};
+
+    // Only update provided fields
+    if (updateDto.fullName !== undefined) {
+      updateData.fullName = updateDto.fullName;
+    }
+
+    if (updateDto.email !== undefined) {
+      // Check if email is already taken by another user
+      const existingUser = await this.userService.findByEmailExcludingId(
+        updateDto.email,
+        userId,
+      );
+      if (existingUser) {
+        throw new BadRequestException('Email already in use by another account');
+      }
+      updateData.email = updateDto.email;
+    }
+
+    if (updateDto.phone !== undefined) {
+      updateData.phone = updateDto.phone;
+    }
+
+    if (updateDto.location !== undefined) {
+      updateData.location = updateDto.location;
+    }
+
+    if (updateDto.talent !== undefined) {
+      updateData.talent = updateDto.talent;
+    }
+
+    if (updateDto.description !== undefined) {
+      updateData.description = updateDto.description;
+    }
+
+    if (updateDto.skills !== undefined) {
+      // Validate skills array
+      if (Array.isArray(updateDto.skills) && updateDto.skills.length > 10) {
+        throw new BadRequestException('Skills array cannot exceed 10 items');
+      }
+      updateData.skills = updateDto.skills;
+    }
+
+    if (updateDto.portfolioLink !== undefined) {
+      // Validate URL if provided and not empty
+      if (updateDto.portfolioLink && updateDto.portfolioLink.trim() !== '') {
+        try {
+          new URL(updateDto.portfolioLink);
+        } catch {
+          throw new BadRequestException('Please provide a valid URL for portfolio link');
+        }
+      }
+      updateData.portfolioLink = updateDto.portfolioLink;
+    }
+
+    // If profile image was uploaded, add the path
+    if (profileImagePath) {
+      updateData.profileImage = profileImagePath;
+    }
+
+    // Update user in database
+    const updatedUser = await this.userService.updateById(userId, updateData);
+
+    if (!updatedUser) {
+      throw new NotFoundException('Failed to update profile');
+    }
+
+    // Return user without password
+    const { password, ...userWithoutPassword } = updatedUser.toObject();
+    return {
+      message: 'Profile updated successfully',
+      user: userWithoutPassword,
+    };
   }
 
-  // 📸 Mettre à jour la photo de profil
+  // 📸 Mettre à jour la photo de profil (kept for backward compatibility)
   async updateProfileImage(userId: string, imageUrl: string) {
     const user = await this.userService.findById(userId);
-    if (!user) throw new NotFoundException('Talent not found');
+    if (!user) {
+      throw new NotFoundException('Talent not found');
+    }
 
     user.profileImage = imageUrl;
     await this.userService.save(user);
@@ -38,10 +144,12 @@ export class TalentService {
     return { message: 'Profile image updated', profileImage: imageUrl };
   }
 
-  // 🖼️ Mettre à jour la bannière
+  // 🖼️ Mettre à jour la bannière (kept for backward compatibility)
   async updateBannerImage(userId: string, bannerUrl: string) {
     const user = await this.userService.findById(userId);
-    if (!user) throw new NotFoundException('Talent not found');
+    if (!user) {
+      throw new NotFoundException('Talent not found');
+    }
 
     user.bannerImage = bannerUrl;
     await this.userService.save(user);

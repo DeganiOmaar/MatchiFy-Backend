@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, MinLength, IsNotEmpty, Matches } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsNotEmpty, IsOptional } from 'class-validator';
 import { Match } from '../decorators/match.decorator';
 
 export class TalentSignupDto {
@@ -52,8 +52,8 @@ export class TalentSignupDto {
     required: false,
   })
   @IsString()
-  @IsNotEmpty()
-  profileImage: string;
+  @IsOptional()
+  profileImage?: string;
 
   @ApiProperty({
     description: 'Location of the talent',

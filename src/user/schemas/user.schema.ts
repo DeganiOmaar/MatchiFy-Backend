@@ -45,6 +45,21 @@ export class User extends Document {
   @Prop()
   description?: string;
 
+  // Talent skills (array of strings, max 10)
+  @Prop({
+    type: [String],
+    default: [],
+    validate: {
+      validator: (skills: string[]) => skills.length <= 10,
+      message: 'Skills array cannot exceed 10 items',
+    },
+  })
+  skills?: string[];
+
+  // Portfolio link
+  @Prop()
+  portfolioLink?: string;
+
   // Password reset fields
   @Prop()
   resetCode?: string;

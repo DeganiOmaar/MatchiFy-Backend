@@ -30,17 +30,24 @@ async signupTalent(dto: TalentSignupDto) {
   // Hash password
   const hashed = await bcrypt.hash(password, 10);
 
-  // Create talent user
-  const user = await this.userService.create({
+  // Prepare user data - only include profileImage if it's not empty
+  const userData: any = {
     fullName,
     email,
     password: hashed,
     role: 'talent',
     phone,
-    profileImage,
     location,
     talent,
-  });
+  };
+
+  // Only include profileImage if it's provided and not empty
+  if (profileImage && profileImage.trim() !== '') {
+    userData.profileImage = profileImage;
+  }
+
+  // Create talent user
+  const user = await this.userService.create(userData);
 
   // Generate JWT token
   const token = this.jwt.sign({ 
