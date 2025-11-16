@@ -6,13 +6,17 @@ import { JwtModule } from '@nestjs/jwt';
 import { UserModule } from 'src/user/user.module';
 import { ConfigModule } from '@nestjs/config';
 import { JwtStrategy } from './jwt.strategy';
-import { MailerModule } from '@nestjs-modules/mailer';
-import { join } from 'path';
-
+import { EmailService } from 'src/common/services/email.service';
+import { Talent } from 'src/talent/schemas/talent.schema';
+import { MongooseModule } from '@nestjs/mongoose';
+import { TalentSchema } from 'src/talent/schemas/talent.schema';
+import { User, UserSchema } from 'src/user/schemas/user.schema';
 @Module({
   imports: [
     UserModule,
     ConfigModule,
+   
+    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
     // ✅ JWT configuration dynamique avec .env
     JwtModule.registerAsync({
       inject: [ConfigService],
@@ -22,26 +26,9 @@ import { join } from 'path';
       }),
     }),
 
-    // ✅ Mailer configuration dynamique avec .env
-    MailerModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        transport: {
-          host: config.get<string>('MAIL_HOST'),
-          port: parseInt(config.get<string>('MAIL_PORT')!, 10),
-          secure: false,
-          auth: {
-            user: config.get<string>('MAIL_USER'),
-            pass: config.get<string>('MAIL_PASS'),
-          },
-        },
-        defaults: {
-          from: `"MatchiFy" <${config.get<string>('MAIL_FROM')}>`,
-        },
-      }),
-    }),
+ 
   ],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, EmailService],
   controllers: [AuthController],
   exports: [JwtStrategy, JwtModule],
 })

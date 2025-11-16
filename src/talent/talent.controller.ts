@@ -1,22 +1,26 @@
 import {
   Controller,
   Get,
-  Patch,
   Post,
   Body,
   Req,
   UseGuards,
   UploadedFile,
+  UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
 import { TalentService } from './talent.service';
-import { UpdateTalentDto } from './dto/update-talent.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  AnyFilesInterceptor,
+  FileInterceptor,
+  FilesInterceptor,
+} from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import { CompleteProfileDto } from './dto/complete-profile.dto';
 
 @Controller('talent')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -24,50 +28,97 @@ import { extname } from 'path';
 export class TalentController {
   constructor(private readonly talentService: TalentService) {}
 
-  // 🔍 Lire le profil du talent connecté
+  // --------------------------------------------------------
+  // 📌 1) Lire le profil du talent connecté
+  // --------------------------------------------------------
   @Get('me')
   async getProfile(@Req() req) {
-    return this.talentService.getProfile(req.user.id);
+    return await this.talentService.getProfile(req.user.id);
   }
 
-  // ✏️ Modifier les coordonnées du talent
+  // --------------------------------------------------------
+  // 📌 2) Compléter le profil (étape 2 après signup)
+  // --------------------------------------------------------
+  @Post('complete-profile')
+  @UseInterceptors(AnyFilesInterceptor())
+  async completeProfile(
+    @Req() req,
+    @Body() dto: CompleteProfileDto,
+  ) {
+    return await this.talentService.completeProfile(req.user.id, dto);
+  }
 
-
-  // 📸 Upload de la photo de profil
+  // --------------------------------------------------------
+  // 📌 3) Upload photo de profil
+  // --------------------------------------------------------
   @Post('upload-profile')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
         destination: './uploads/profile',
         filename: (req, file, cb) => {
-          const uniqueName = `${Date.now()}-${file.originalname}`;
+          const uniqueName = `${Date.now()}${extname(file.originalname)}`;
           cb(null, uniqueName);
         },
       }),
     }),
   )
-  async uploadProfileImage(@Req() req, @UploadedFile() file: Express.Multer.File) {
+  async uploadProfileImage(
+    @Req() req,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
     const imageUrl = `/uploads/profile/${file.filename}`;
-    return this.talentService.updateProfileImage(req.user.id, imageUrl);
-
-
+    return await this.talentService.updateProfileImage(req.user.id, imageUrl);
   }
 
-  // 🖼️ Upload de la bannière
+  // --------------------------------------------------------
+  // 📌 4) Upload bannière
+  // --------------------------------------------------------
   @Post('upload-banner')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
         destination: './uploads/banner',
         filename: (req, file, cb) => {
-          const uniqueName = `${Date.now()}-${file.originalname}`;
+          const uniqueName = `${Date.now()}${extname(file.originalname)}`;
           cb(null, uniqueName);
         },
       }),
     }),
   )
-  async uploadBanner(@Req() req, @UploadedFile() file: Express.Multer.File) {
+  async uploadBanner(
+    @Req() req,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
     const bannerUrl = `/uploads/banner/${file.filename}`;
-return this.talentService.updateBannerImage(req.user.id, bannerUrl);
+    return await this.talentService.updateBannerImage(req.user.id, bannerUrl);
+  }
+
+  // --------------------------------------------------------
+  // 📌 5) Upload images de portfolio (plusieurs images)
+  // --------------------------------------------------------
+  @Post('upload-portfolio')
+  @UseInterceptors(
+    FilesInterceptor('files', 10, {
+      storage: diskStorage({
+        destination: './uploads/portfolio',
+        filename: (req, file, cb) => {
+          const uniqueName = `${Date.now()}${extname(file.originalname)}`;
+          cb(null, uniqueName);
+        },
+      }),
+    }),
+  )
+  async uploadPortfolioImages(
+    @Req() req,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    const imageUrls = files.map(
+      (file) => `/uploads/portfolio/${file.filename}`,
+    );
+    return await this.talentService.addPortfolioImages(
+      req.user.id,
+      imageUrls,
+    );
   }
 }

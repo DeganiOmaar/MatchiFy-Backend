@@ -1,10 +1,6 @@
 import { IsOptional, IsString } from 'class-validator';
 
-export class UpdateTalentDto {
-  @IsOptional()
-  @IsString()
-  fullName?: string;
-
+export class CompleteProfileDto {
   @IsOptional()
   @IsString()
   bio?: string;
@@ -20,5 +16,4 @@ export class UpdateTalentDto {
   @IsOptional()
   @IsString()
   talent?: string;
-
 }

@@ -27,7 +27,6 @@ export class UserService {
   async save(user: User): Promise<User> {
     return user.save();
   }
-
   // ✅ Mettre à jour le mot de passe (pour forgot/reset password)
   async updatePassword(id: string, newPassword: string): Promise<User> {
     const updatedUser = await this.userModel.findByIdAndUpdate(
@@ -42,4 +41,17 @@ export class UserService {
 
     return updatedUser;
   }
+
+  
+
+
+
+  async findByResetCode(code: string): Promise<User | null> {
+    return this.userModel.findOne({ resetCode: code }).exec();
+  }
+
+  async findByVerifiedEmail(email: string): Promise<User | null> {
+    return this.userModel.findOne({ verifiedEmail: email }).exec();
+  }
+
 }
