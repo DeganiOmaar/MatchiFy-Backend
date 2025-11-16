@@ -1,5 +1,6 @@
 import {
   Controller,
+  Get,
   Put,
   Body,
   UseGuards,
@@ -28,6 +29,51 @@ import { profileImageUploadOptions } from '../common/utils/file-upload.config';
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class RecruiterController {
   constructor(private readonly recruiterService: RecruiterService) {}
+
+  @Get('profile')
+  @Roles('recruiter')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get recruiter profile',
+    description: 'Retrieves the profile information of the authenticated recruiter.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Profile retrieved successfully',
+    schema: {
+      example: {
+        message: 'Profile retrieved successfully',
+        user: {
+          _id: '673ab2c3e8f9a1234567890b',
+          fullName: 'Jane Smith',
+          email: 'jane.smith@company.com',
+          role: 'recruiter',
+          phone: '+1234567890',
+          location: 'San Francisco, CA',
+          description: 'Experienced tech recruiter specializing in software engineering roles',
+          profileImage: 'uploads/profile/profile-1731504922456-123456789.jpg',
+          createdAt: '2025-11-13T12:35:22.456Z',
+          updatedAt: '2025-11-13T15:20:10.123Z',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing JWT token',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - User is not a recruiter',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Not Found - User does not exist',
+  })
+  async getProfile(@Request() req: any) {
+    const userId = req.user.id;
+    return this.recruiterService.getProfile(userId);
+  }
 
   @Put('profile')
   @Roles('recruiter')

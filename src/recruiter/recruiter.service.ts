@@ -6,6 +6,26 @@ import { UpdateRecruiterProfileDto } from './dto/update-recruiter-profile.dto';
 export class RecruiterService {
   constructor(private readonly userService: UserService) {}
 
+  async getProfile(userId: string) {
+    // Find the user
+    const user = await this.userService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Verify user is a recruiter
+    if (user.role !== 'recruiter') {
+      throw new ForbiddenException('Only recruiters can access this endpoint');
+    }
+
+    // Return user without password
+    const { password, ...userWithoutPassword } = user.toObject();
+    return {
+      message: 'Profile retrieved successfully',
+      user: userWithoutPassword,
+    };
+  }
+
   async updateProfile(
     userId: string,
     updateDto: UpdateRecruiterProfileDto,
