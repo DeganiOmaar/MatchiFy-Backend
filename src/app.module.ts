@@ -8,6 +8,7 @@ import { MongooseModule } from '@nestjs/mongoose/dist/mongoose.module';
 import { ConfigModule } from '@nestjs/config/dist/config.module';
 import { TalentModule } from './talent/talent.module';
 import { RecruiterModule } from './recruiter/recruiter.module';
+import { MissionsModule } from './missions/missions.module';
 
 @Module({
   imports: [
@@ -22,7 +23,7 @@ import { RecruiterModule } from './recruiter/recruiter.module';
     }),
 
 
-    AuthModule , UserModule, TalentModule, RecruiterModule],
+    AuthModule , UserModule, TalentModule, RecruiterModule, MissionsModule],
   controllers: [AppController],
   providers: [AppService],
 })
