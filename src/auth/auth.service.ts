@@ -57,8 +57,10 @@ async signupTalent(dto: TalentSignupDto) {
   });
 
   return { 
+    message: 'Talent successfully registered',
     user: this.clean(user), 
-    token 
+    token,
+    role: user.role  // Include role at root level for consistency with login
   };
 }
 
@@ -88,8 +90,10 @@ async signupRecruiter(dto: RecruiterSignupDto) {
   });
 
   return { 
+    message: 'Recruiter successfully registered',
     user: this.clean(user), 
-    token 
+    token,
+    role: user.role  // Include role at root level for consistency with login
   };
 }
 
