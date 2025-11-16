@@ -121,4 +121,15 @@ export class TalentController {
       imageUrls,
     );
   }
+
+  // --------------------------------------------------------
+  // 📌 6) Supprimer une image de portfolio
+  // --------------------------------------------------------
+  @Post('delete-portfolio')
+  async deletePortfolioImage(@Req() req, @Body('imageUrl') imageUrl: string) {
+    return await this.talentService.removePortfolioImage(
+      req.user.id,
+      imageUrl,
+    );
+  }
 }
