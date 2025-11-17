@@ -10,6 +10,8 @@ import {
   Request,
   HttpCode,
   HttpStatus,
+  Sse,
+  MessageEvent,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -25,6 +27,7 @@ import { Roles } from '../auth/roles.decorator';
 import { MissionsService } from './missions.service';
 import { CreateMissionDto } from './dto/create-mission.dto';
 import { UpdateMissionDto } from './dto/update-mission.dto';
+import { Observable } from 'rxjs';
 
 @ApiTags('missions')
 @Controller('missions')
@@ -34,7 +37,7 @@ export class MissionsController {
   constructor(private readonly missionsService: MissionsService) {}
 
   @Post()
-  @Roles('recruiter')
+  @Roles('recruiter', 'talent')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Create a new mission offer',
@@ -122,7 +125,7 @@ export class MissionsController {
   }
 
   @Get('all')
-  @Roles('recruiter')
+  @Roles('recruiter', 'talent')
   @ApiOperation({
     summary: 'Get all mission offers (all recruiters)',
     description:
@@ -160,17 +163,32 @@ export class MissionsController {
   })
   @ApiResponse({
     status: 403,
-    description: 'Forbidden - User is not a recruiter',
+    description: 'Forbidden - User role not allowed',
     schema: {
       example: {
         statusCode: 403,
-        message: 'Access denied for role: talent',
+        message: 'Access denied: insufficient role',
         error: 'Forbidden',
       },
     },
   })
   async findAllMissions() {
     return this.missionsService.findAll();
+  }
+
+  @Sse('stream')
+  @Roles('recruiter', 'talent')
+  @ApiOperation({
+    summary: 'Subscribe to mission updates',
+    description:
+      'Server-Sent Events stream that broadcasts mission creations, updates, and deletions in real time.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'SSE stream started',
+  })
+  missionUpdates(): Observable<MessageEvent> {
+    return this.missionsService.getMissionUpdates();
   }
 
   @Get()

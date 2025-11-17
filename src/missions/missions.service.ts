@@ -9,11 +9,15 @@ import { Model } from 'mongoose';
 import { Mission, MissionDocument } from './schemas/mission.schema';
 import { CreateMissionDto } from './dto/create-mission.dto';
 import { UpdateMissionDto } from './dto/update-mission.dto';
+import { MissionsEventsService } from './missions-events.service';
+import { MessageEvent } from '@nestjs/common';
+import { Observable } from 'rxjs';
 
 @Injectable()
 export class MissionsService {
   constructor(
-    @InjectModel(Mission.name) private missionModel: Model<MissionDocument>
+    @InjectModel(Mission.name) private missionModel: Model<MissionDocument>,
+    private readonly missionsEventsService: MissionsEventsService
   ) {}
 
   /**
@@ -31,7 +35,12 @@ export class MissionsService {
         ...createMissionDto,
         recruiterId,
       });
-      return await mission.save();
+      const savedMission = await mission.save();
+      this.missionsEventsService.emit({
+        type: 'mission_created',
+        mission: this.missionsEventsService.toPlainMission(savedMission),
+      });
+      return savedMission;
     } catch (error) {
       throw new BadRequestException(
         `Failed to create mission: ${error.message}`
@@ -113,6 +122,11 @@ export class MissionsService {
       throw new NotFoundException(`Failed to update mission ${missionId}`);
     }
 
+    this.missionsEventsService.emit({
+      type: 'mission_updated',
+      mission: this.missionsEventsService.toPlainMission(updatedMission),
+    });
+
     return updatedMission;
   }
 
@@ -145,7 +159,16 @@ export class MissionsService {
       throw new NotFoundException(`Failed to delete mission ${missionId}`);
     }
 
+    this.missionsEventsService.emit({
+      type: 'mission_deleted',
+      missionId: missionId,
+    });
+
     return deletedMission;
+  }
+
+  getMissionUpdates(): Observable<MessageEvent> {
+    return this.missionsEventsService.stream();
   }
 }
 
