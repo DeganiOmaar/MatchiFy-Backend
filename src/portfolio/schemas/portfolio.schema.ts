@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
+import { MediaItem, MediaItemSchema } from './media-item.schema';
 
 export interface PortfolioDocument extends Portfolio, Document {
   createdAt: Date;
@@ -17,11 +18,11 @@ export class Portfolio {
   @Prop()
   role?: string;
 
-  @Prop()
-  media?: string; // Path to uploaded image or video
-
-  @Prop()
-  mediaType?: string; // 'image' or 'video'
+  @Prop({
+    type: [MediaItemSchema],
+    default: [],
+  })
+  media: MediaItem[]; // Array of media items (images, videos, PDFs, external links)
 
   @Prop({
     type: [String],
@@ -30,7 +31,10 @@ export class Portfolio {
   skills: string[];
 
   @Prop()
-  description?: string;
+  description?: string; // No length limit in backend
+
+  @Prop()
+  projectLink?: string; // URL to the project (e.g., GitHub, website)
 }
 
 export const PortfolioSchema = SchemaFactory.createForClass(Portfolio);

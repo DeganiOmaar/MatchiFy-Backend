@@ -8,7 +8,7 @@ import {
   Param,
   Request,
   UseGuards,
-  UploadedFile,
+  UploadedFiles,
   UseInterceptors,
   HttpCode,
   HttpStatus,
@@ -22,7 +22,7 @@ import {
   ApiBody,
   ApiParam,
 } from '@nestjs/swagger';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { PortfolioService } from './portfolio.service';
 import { CreatePortfolioDto } from './dto/create-portfolio.dto';
 import { UpdatePortfolioDto } from './dto/update-portfolio.dto';
@@ -42,12 +42,12 @@ export class PortfolioController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(FileInterceptor('media', portfolioMediaUploadOptions))
+  @UseInterceptors(FilesInterceptor('media', 20, portfolioMediaUploadOptions))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Create a new portfolio project',
     description:
-      'Allows authenticated talents to create a new project in their portfolio. Supports uploading an image or video file along with project details.',
+      'Allows authenticated talents to create a new project in their portfolio. Supports uploading multiple files (images, videos, PDFs) and external links along with project details.',
   })
   @ApiBody({
     schema: {
@@ -70,13 +70,26 @@ export class PortfolioController {
         },
         description: {
           type: 'string',
-          description: 'Project description (optional)',
+          description: 'Project description (optional, no length limit)',
           example: 'A full-stack e-commerce mobile application with real-time inventory management.',
         },
-        media: {
+        projectLink: {
           type: 'string',
-          format: 'binary',
-          description: 'Image or video file (optional). Supported formats: PNG, JPG, JPEG, GIF, WEBP, MP4, MOV, AVI, MKV, WEBM. Max size: 50MB',
+          description: 'URL to the project (optional, e.g., GitHub repository, website)',
+          example: 'https://github.com/username/project',
+        },
+        media: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+          description: 'Multiple files (images, videos, PDFs). Supported formats: PNG, JPG, JPEG, GIF, WEBP, MP4, MOV, AVI, MKV, WEBM, PDF. Max size: 50MB per file. Max 20 files.',
+        },
+        mediaItems: {
+          type: 'string',
+          description: 'JSON array of media items (optional, for external links or existing media). Format: [{"type":"external_link","externalLink":"https://example.com","title":"Demo"}]',
+          example: '[{"type":"external_link","externalLink":"https://example.com/demo","title":"Live Demo"}]',
         },
       },
       required: ['title'],
@@ -109,10 +122,10 @@ export class PortfolioController {
   async create(
     @Request() req: any,
     @Body() createDto: CreatePortfolioDto,
-    @UploadedFile() mediaFile?: Express.Multer.File,
+    @UploadedFiles() mediaFiles?: Express.Multer.File[],
   ) {
     const talentId = req.user.id;
-    const project = await this.portfolioService.create(talentId, createDto, mediaFile);
+    const project = await this.portfolioService.create(talentId, createDto, mediaFiles);
     return {
       message: 'Project created successfully',
       project,
@@ -214,12 +227,12 @@ export class PortfolioController {
   }
 
   @Put(':id')
-  @UseInterceptors(FileInterceptor('media', portfolioMediaUploadOptions))
+  @UseInterceptors(FilesInterceptor('media', 20, portfolioMediaUploadOptions))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Update a portfolio project',
     description:
-      'Allows authenticated talents to update an existing project in their portfolio. Only the project owner can update it. Supports partial updates and media file replacement.',
+      'Allows authenticated talents to update an existing project in their portfolio. Only the project owner can update it. Supports partial updates, multiple file uploads, and media management.',
   })
   @ApiParam({
     name: 'id',
@@ -247,13 +260,26 @@ export class PortfolioController {
         },
         description: {
           type: 'string',
-          description: 'Project description (optional)',
+          description: 'Project description (optional, no length limit)',
           example: 'A full-stack e-commerce mobile application with advanced features.',
         },
-        media: {
+        projectLink: {
           type: 'string',
-          format: 'binary',
-          description: 'New image or video file to replace existing media (optional)',
+          description: 'URL to the project (optional)',
+          example: 'https://github.com/username/project',
+        },
+        media: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+          description: 'New files to add (images, videos, PDFs). Supported formats: PNG, JPG, JPEG, GIF, WEBP, MP4, MOV, AVI, MKV, WEBM, PDF. Max size: 50MB per file. Max 20 files.',
+        },
+        mediaItems: {
+          type: 'string',
+          description: 'JSON array of media items to replace existing media (optional). If provided, replaces entire media array. Format: [{"type":"image","url":"uploads/...","title":"..."}]',
+          example: '[{"type":"image","url":"uploads/portfolio/image.jpg","title":"Screenshot"},{"type":"external_link","externalLink":"https://example.com","title":"Demo"}]',
         },
       },
     },
@@ -283,10 +309,10 @@ export class PortfolioController {
     @Request() req: any,
     @Param('id') id: string,
     @Body() updateDto: UpdatePortfolioDto,
-    @UploadedFile() mediaFile?: Express.Multer.File,
+    @UploadedFiles() mediaFiles?: Express.Multer.File[],
   ) {
     const talentId = req.user.id;
-    const project = await this.portfolioService.update(id, talentId, updateDto, mediaFile);
+    const project = await this.portfolioService.update(id, talentId, updateDto, mediaFiles);
     return {
       message: 'Project updated successfully',
       project,

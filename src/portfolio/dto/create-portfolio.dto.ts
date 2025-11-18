@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, IsArray } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsArray, IsUrl } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { MediaItemDto } from './media-item.dto';
 
 export class CreatePortfolioDto {
   @ApiProperty({
@@ -41,11 +42,41 @@ export class CreatePortfolioDto {
   skills?: string[];
 
   @ApiPropertyOptional({
-    description: 'Project description',
+    description: 'Project description (no length limit)',
     example: 'A full-stack e-commerce mobile application with real-time inventory management.',
   })
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiPropertyOptional({
+    description: 'URL to the project (e.g., GitHub repository, website)',
+    example: 'https://github.com/username/project',
+  })
+  @IsOptional()
+  @IsUrl({}, { message: 'Please provide a valid URL for project link' })
+  projectLink?: string;
+
+  @ApiPropertyOptional({
+    description: 'Array of media items. Can be sent as JSON string in multipart/form-data. Files uploaded will be automatically added to this array.',
+    type: [MediaItemDto],
+    example: [
+      { type: 'image', url: 'uploads/portfolio/image.jpg', title: 'Main Screenshot' },
+      { type: 'external_link', externalLink: 'https://example.com/demo', title: 'Live Demo' },
+    ],
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return [];
+      }
+    }
+    return value || [];
+  })
+  @IsArray()
+  media?: MediaItemDto[];
 }
 

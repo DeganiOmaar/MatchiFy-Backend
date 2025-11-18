@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { MediaItemDto } from './media-item.dto';
 
 export class PortfolioResponseDto {
   @ApiProperty({
@@ -27,19 +28,15 @@ export class PortfolioResponseDto {
   role?: string;
 
   @ApiProperty({
-    description: 'Media file path (relative to base URL)',
-    example: '/uploads/portfolio/project-1234567890.jpg',
-    required: false,
+    description: 'Array of media items (images, videos, PDFs, external links)',
+    type: [MediaItemDto],
+    example: [
+      { type: 'image', url: 'uploads/portfolio/portfolio-image-123.jpg', title: 'Main Screenshot' },
+      { type: 'video', url: 'uploads/portfolio/portfolio-video-456.mp4', title: 'Demo Video' },
+      { type: 'external_link', externalLink: 'https://example.com/demo', title: 'Live Demo' },
+    ],
   })
-  media?: string;
-
-  @ApiProperty({
-    description: 'Media type (image or video)',
-    example: 'image',
-    enum: ['image', 'video'],
-    required: false,
-  })
-  mediaType?: string;
+  media: MediaItemDto[];
 
   @ApiProperty({
     description: 'List of skills used in the project',
@@ -49,11 +46,18 @@ export class PortfolioResponseDto {
   skills: string[];
 
   @ApiProperty({
-    description: 'Project description',
-    example: 'A full-stack e-commerce mobile application.',
+    description: 'Project description (full text, no length limit)',
+    example: 'A full-stack e-commerce mobile application with real-time inventory management, advanced analytics, and seamless payment integration.',
     required: false,
   })
   description?: string;
+
+  @ApiProperty({
+    description: 'URL to the project (e.g., GitHub repository, website)',
+    example: 'https://github.com/username/project',
+    required: false,
+  })
+  projectLink?: string;
 
   @ApiProperty({
     description: 'Creation timestamp',

@@ -9,11 +9,14 @@ import { Model } from 'mongoose';
 import { Portfolio, PortfolioDocument } from './schemas/portfolio.schema';
 import { CreatePortfolioDto } from './dto/create-portfolio.dto';
 import { UpdatePortfolioDto } from './dto/update-portfolio.dto';
+import { MediaItemDto } from './dto/media-item.dto';
+import { MediaItem } from './schemas/media-item.schema';
 import { extname } from 'path';
 
 // Allowed extensions for portfolio media
 const allowedImageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
 const allowedVideoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm'];
+const allowedPdfExtensions = ['.pdf'];
 
 @Injectable()
 export class PortfolioService {
@@ -27,12 +30,13 @@ export class PortfolioService {
   async create(
     talentId: string,
     createDto: CreatePortfolioDto,
-    mediaFile?: Express.Multer.File,
+    mediaFiles?: Express.Multer.File[],
   ) {
     const projectData: any = {
       talentId,
       title: createDto.title,
       skills: createDto.skills || [],
+      media: [],
     };
 
     if (createDto.role) {
@@ -43,25 +47,55 @@ export class PortfolioService {
       projectData.description = createDto.description;
     }
 
-    // Handle media file upload
-    if (mediaFile) {
-      const ext = extname(mediaFile.originalname).toLowerCase();
-      const isImage = allowedImageExtensions.includes(ext);
-      const isVideo = allowedVideoExtensions.includes(ext);
+    if (createDto.projectLink) {
+      projectData.projectLink = createDto.projectLink;
+    }
 
-      if (!isImage && !isVideo) {
-        throw new BadRequestException('Invalid media file type');
+    // Process uploaded files
+    if (mediaFiles && mediaFiles.length > 0) {
+      const mediaItems: MediaItem[] = [];
+      
+      for (const file of mediaFiles) {
+        const ext = extname(file.originalname).toLowerCase();
+        const isImage = allowedImageExtensions.includes(ext);
+        const isVideo = allowedVideoExtensions.includes(ext);
+        const isPdf = allowedPdfExtensions.includes(ext);
+
+        if (!isImage && !isVideo && !isPdf) {
+          throw new BadRequestException(`Invalid file type: ${ext}. Only images, videos, and PDFs are allowed`);
+        }
+
+        // Store path relative to uploads folder
+        let relativePath = file.path.replace(/\\/g, '/');
+        if (relativePath.startsWith('./')) {
+          relativePath = relativePath.substring(2);
+        }
+
+        const mediaItem: MediaItem = {
+          type: isImage ? 'image' : isVideo ? 'video' : 'pdf',
+          url: relativePath,
+          title: file.originalname,
+        };
+
+        mediaItems.push(mediaItem);
       }
 
-      // Store path relative to uploads folder (e.g., portfolio/portfolio-image-123.jpg)
-      // Multer stores as ./uploads/portfolio/filename, we need uploads/portfolio/filename
-      let relativePath = mediaFile.path.replace(/\\/g, '/');
-      // Remove leading ./ if present
-      if (relativePath.startsWith('./')) {
-        relativePath = relativePath.substring(2);
+      projectData.media = mediaItems;
+    }
+
+    // Process media items from DTO (for external links or existing media)
+    if (createDto.media && createDto.media.length > 0) {
+      const existingMedia = projectData.media || [];
+      for (const mediaDto of createDto.media) {
+        const mediaItem: MediaItem = {
+          type: mediaDto.type,
+          url: mediaDto.url,
+          title: mediaDto.title,
+          externalLink: mediaDto.externalLink,
+        };
+        existingMedia.push(mediaItem);
       }
-      projectData.media = relativePath;
-      projectData.mediaType = isImage ? 'image' : 'video';
+      projectData.media = existingMedia;
     }
 
     const project = await this.portfolioModel.create(projectData);
@@ -103,7 +137,7 @@ export class PortfolioService {
     projectId: string,
     talentId: string,
     updateDto: UpdatePortfolioDto,
-    mediaFile?: Express.Multer.File,
+    mediaFiles?: Express.Multer.File[],
   ) {
     const project = await this.portfolioModel.findById(projectId);
 
@@ -132,24 +166,50 @@ export class PortfolioService {
       project.description = updateDto.description;
     }
 
-    // Handle media file upload (replace existing if new file is provided)
-    if (mediaFile) {
-      const ext = extname(mediaFile.originalname).toLowerCase();
-      const isImage = allowedImageExtensions.includes(ext);
-      const isVideo = allowedVideoExtensions.includes(ext);
+    if (updateDto.projectLink !== undefined) {
+      project.projectLink = updateDto.projectLink;
+    }
 
-      if (!isImage && !isVideo) {
-        throw new BadRequestException('Invalid media file type');
+    // Handle media updates
+    if (updateDto.media !== undefined) {
+      // Replace entire media array if provided
+      project.media = updateDto.media.map((mediaDto) => ({
+        type: mediaDto.type,
+        url: mediaDto.url,
+        title: mediaDto.title,
+        externalLink: mediaDto.externalLink,
+      }));
+    }
+
+    // Process new uploaded files (append to existing media)
+    if (mediaFiles && mediaFiles.length > 0) {
+      const existingMedia = project.media || [];
+      
+      for (const file of mediaFiles) {
+        const ext = extname(file.originalname).toLowerCase();
+        const isImage = allowedImageExtensions.includes(ext);
+        const isVideo = allowedVideoExtensions.includes(ext);
+        const isPdf = allowedPdfExtensions.includes(ext);
+
+        if (!isImage && !isVideo && !isPdf) {
+          throw new BadRequestException(`Invalid file type: ${ext}. Only images, videos, and PDFs are allowed`);
+        }
+
+        let relativePath = file.path.replace(/\\/g, '/');
+        if (relativePath.startsWith('./')) {
+          relativePath = relativePath.substring(2);
+        }
+
+        const mediaItem: MediaItem = {
+          type: isImage ? 'image' : isVideo ? 'video' : 'pdf',
+          url: relativePath,
+          title: file.originalname,
+        };
+
+        existingMedia.push(mediaItem);
       }
 
-      // Store path relative to uploads folder
-      let relativePath = mediaFile.path.replace(/\\/g, '/');
-      // Remove leading ./ if present
-      if (relativePath.startsWith('./')) {
-        relativePath = relativePath.substring(2);
-      }
-      project.media = relativePath;
-      project.mediaType = isImage ? 'image' : 'video';
+      project.media = existingMedia;
     }
 
     await project.save();

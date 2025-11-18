@@ -14,3 +14,5 @@ import { Portfolio, PortfolioSchema } from './schemas/portfolio.schema';
 })
 export class PortfolioModule {}
 
+// MediaItem is embedded in PortfolioSchema, no need to register separately
+

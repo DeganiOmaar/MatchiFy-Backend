@@ -39,12 +39,13 @@ export const profileImageUploadOptions = {
   fileFilter: imageFileFilter,
 };
 
-// Allowed media extensions for portfolio (images and videos)
+// Allowed media extensions for portfolio (images, videos, and PDFs)
 const allowedImageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
 const allowedVideoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm'];
-const allowedPortfolioExtensions = [...allowedImageExtensions, ...allowedVideoExtensions];
+const allowedPdfExtensions = ['.pdf'];
+const allowedPortfolioExtensions = [...allowedImageExtensions, ...allowedVideoExtensions, ...allowedPdfExtensions];
 
-// File filter for portfolio media validation (images and videos)
+// File filter for portfolio media validation (images, videos, PDFs)
 export const portfolioMediaFileFilter = (req: any, file: Express.Multer.File, callback: any) => {
   const ext = extname(file.originalname).toLowerCase();
   
@@ -66,18 +67,24 @@ export const portfolioMediaStorage = diskStorage({
   filename: (req, file, callback) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     const ext = extname(file.originalname).toLowerCase();
-    const isVideo = allowedVideoExtensions.includes(ext);
-    const prefix = isVideo ? 'video' : 'image';
+    let prefix = 'file';
+    if (allowedImageExtensions.includes(ext)) {
+      prefix = 'image';
+    } else if (allowedVideoExtensions.includes(ext)) {
+      prefix = 'video';
+    } else if (allowedPdfExtensions.includes(ext)) {
+      prefix = 'pdf';
+    }
     const filename = `portfolio-${prefix}-${uniqueSuffix}${ext}`;
     callback(null, filename);
   },
 });
 
-// Multer options for portfolio media upload
+// Multer options for portfolio media upload (supports multiple files)
 export const portfolioMediaUploadOptions = {
   storage: portfolioMediaStorage,
   fileFilter: portfolioMediaFileFilter,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB max file size
+    fileSize: 50 * 1024 * 1024, // 50MB max file size per file
   },
 };
