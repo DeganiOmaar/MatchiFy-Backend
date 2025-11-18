@@ -92,10 +92,6 @@ export class TalentService {
     }
 
     if (updateDto.skills !== undefined) {
-      // Validate skills array
-      if (Array.isArray(updateDto.skills) && updateDto.skills.length > 10) {
-        throw new BadRequestException('Skills array cannot exceed 10 items');
-      }
       updateData.skills = updateDto.skills;
     }
 

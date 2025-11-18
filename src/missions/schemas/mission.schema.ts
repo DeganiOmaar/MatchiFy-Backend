@@ -23,10 +23,6 @@ export class Mission extends Document {
   @Prop({
     type: [String],
     required: true,
-    validate: {
-      validator: (skills: string[]) => skills.length <= 10,
-      message: 'Skills array cannot exceed 10 elements',
-    },
   })
   skills: string[];
 

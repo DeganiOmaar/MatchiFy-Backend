@@ -9,6 +9,7 @@ import { ConfigModule } from '@nestjs/config/dist/config.module';
 import { TalentModule } from './talent/talent.module';
 import { RecruiterModule } from './recruiter/recruiter.module';
 import { MissionsModule } from './missions/missions.module';
+import { PortfolioModule } from './portfolio/portfolio.module';
 
 @Module({
   imports: [
@@ -23,7 +24,7 @@ import { MissionsModule } from './missions/missions.module';
     }),
 
 
-    AuthModule , UserModule, TalentModule, RecruiterModule, MissionsModule],
+    AuthModule , UserModule, TalentModule, RecruiterModule, MissionsModule, PortfolioModule],
   controllers: [AppController],
   providers: [AppService],
 })

@@ -38,21 +38,21 @@ export class User extends Document {
   @Prop()
   location?: string;
 
-  @Prop()
-  talent?: string;
+  // Talent categories (array of strings, e.g., ["developer", "photographer"])
+  @Prop({
+    type: [String],
+    default: [],
+  })
+  talent?: string[];
 
   // Profile description
   @Prop()
   description?: string;
 
-  // Talent skills (array of strings, max 10)
+  // Talent skills (array of strings, no max limit)
   @Prop({
     type: [String],
     default: [],
-    validate: {
-      validator: (skills: string[]) => skills.length <= 10,
-      message: 'Skills array cannot exceed 10 items',
-    },
   })
   skills?: string[];
 

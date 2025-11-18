@@ -42,7 +42,7 @@ export class MissionsController {
   @ApiOperation({
     summary: 'Create a new mission offer',
     description:
-      'Allows authenticated recruiters to create a new mission offer. The mission will be automatically associated with the authenticated recruiter. All fields are required: title, description, duration, budget, and skills (max 10).',
+      'Allows authenticated recruiters to create a new mission offer. The mission will be automatically associated with the authenticated recruiter. All fields are required: title, description, duration, budget, and skills.',
   })
   @ApiBody({
     type: CreateMissionDto,
@@ -89,7 +89,6 @@ export class MissionsController {
           'Title is required',
           'Description is required',
           'Budget must be a number',
-          'Skills array cannot exceed 10 elements',
         ],
         error: 'Bad Request',
       },
@@ -383,7 +382,6 @@ export class MissionsController {
         statusCode: 400,
         message: [
           'Budget must be a number',
-          'Skills array cannot exceed 10 elements',
         ],
         error: 'Bad Request',
       },

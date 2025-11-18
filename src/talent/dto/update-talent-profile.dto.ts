@@ -44,15 +44,30 @@ export class UpdateTalentProfileDto {
   location?: string;
 
   @ApiPropertyOptional({
-    description: 'Talent category (e.g., singer, designer, actor)',
-    example: 'Singer',
+    description: 'Talent categories (array of strings, e.g., ["developer", "photographer"]). Can be sent as JSON string or comma-separated string in multipart/form-data',
+    example: ['Developer', 'Photographer'],
+    type: [String],
   })
   @IsOptional()
-  @IsString()
-  talent?: string;
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      try {
+        // Try to parse as JSON first
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : value.split(',').map(s => s.trim()).filter(s => s);
+      } catch {
+        // If not JSON, treat as comma-separated string
+        return value.split(',').map(s => s.trim()).filter(s => s);
+      }
+    }
+    return value;
+  })
+  @IsArray()
+  @IsString({ each: true })
+  talent?: string[];
 
   @ApiPropertyOptional({
-    description: 'Array of skills (maximum 10 items). Can be sent as JSON string or comma-separated string in multipart/form-data',
+    description: 'Array of skills. Can be sent as JSON string or comma-separated string in multipart/form-data',
     example: ['Vocal Performance', 'Songwriting', 'Guitar'],
     type: [String],
   })
@@ -71,7 +86,6 @@ export class UpdateTalentProfileDto {
     return value;
   })
   @IsArray()
-  @ArrayMaxSize(10, { message: 'Skills array cannot exceed 10 items' })
   @IsString({ each: true })
   skills?: string[];
 

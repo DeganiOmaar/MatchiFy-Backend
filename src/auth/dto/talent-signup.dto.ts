@@ -54,20 +54,4 @@ export class TalentSignupDto {
   @IsString()
   @IsOptional()
   profileImage?: string;
-
-  @ApiProperty({
-    description: 'Location of the talent',
-    example: 'New York, USA',
-  })
-  @IsString()
-  @IsNotEmpty()
-  location: string;
-
-  @ApiProperty({
-    description: 'Talent skill (e.g., dancer, photographer, singer)',
-    example: 'Photographer',
-  })
-  @IsString()
-  @IsNotEmpty()
-  talent: string;
 }

@@ -21,7 +21,7 @@ export class AuthService {
     ) {}
 
 async signupTalent(dto: TalentSignupDto) {
-  const { email, password, fullName, phone, profileImage, location, talent } = dto;
+  const { email, password, fullName, phone, profileImage } = dto;
 
   // Check if email already exists
   const existing = await this.userService.findByEmail(email);
@@ -37,8 +37,6 @@ async signupTalent(dto: TalentSignupDto) {
     password: hashed,
     role: 'talent',
     phone,
-    location,
-    talent,
   };
 
   // Only include profileImage if it's provided and not empty

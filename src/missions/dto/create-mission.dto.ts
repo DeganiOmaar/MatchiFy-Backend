@@ -47,13 +47,11 @@ export class CreateMissionDto {
   budget: number;
 
   @ApiProperty({
-    description: 'List of required skills (maximum 10)',
+    description: 'List of required skills',
     example: ['React', 'Node.js', 'TypeScript', 'MongoDB', 'Express'],
     type: [String],
-    maxItems: 10,
   })
   @IsArray({ message: 'Skills must be an array' })
-  @ArrayMaxSize(10, { message: 'Skills array cannot exceed 10 elements' })
   @IsString({ each: true, message: 'Each skill must be a string' })
   @IsNotEmpty({ message: 'Skills are required' })
   skills: string[];
