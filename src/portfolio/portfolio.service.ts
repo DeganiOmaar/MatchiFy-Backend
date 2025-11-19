@@ -44,14 +44,26 @@ export class PortfolioService {
       for (const skillName of createDto.skills) {
         if (typeof skillName === 'string' && skillName.trim()) {
           try {
+            // Clean skill name: remove parentheses and extra whitespace
+            // Example: "Swift (computer programming)" -> "Swift"
+            let cleanedName = skillName.trim();
+            // Remove content in parentheses if present
+            cleanedName = cleanedName.replace(/\s*\([^)]*\)\s*$/, '').trim();
+            
+            if (!cleanedName) {
+              continue; // Skip empty skill names after cleaning
+            }
+            
             const skill = await this.skillService.findOrCreateSkill(
-              skillName.trim(),
+              cleanedName,
               talentId
             );
             if (skill && skill._id) {
               skillIds.push(skill._id.toString());
             }
           } catch (error) {
+            // Log the error but continue with other skills
+            console.error(`Error processing skill "${skillName}":`, error);
             throw new BadRequestException(`Invalid skill: ${skillName}`);
           }
         }
@@ -125,7 +137,16 @@ export class PortfolioService {
     }
 
     const project = await this.portfolioModel.create(projectData);
-    return project.toObject();
+    const projectObj = project.toObject();
+    
+    // Populate skills with their names before returning
+    if (projectObj.skills && projectObj.skills.length > 0) {
+      const skills = await this.skillService.findByIds(projectObj.skills);
+      // Replace skill IDs with skill names, filter out any that don't exist
+      projectObj.skills = skills.map((skill) => skill.name).filter((name) => name);
+    }
+    
+    return projectObj;
   }
 
   /**
@@ -136,7 +157,20 @@ export class PortfolioService {
       .find({ talentId })
       .sort({ createdAt: -1 }) // Newest first
       .lean();
-    return projects;
+    
+    // Populate skills with their names
+    const projectsWithSkills = await Promise.all(
+      projects.map(async (project) => {
+        if (project.skills && project.skills.length > 0) {
+          const skills = await this.skillService.findByIds(project.skills);
+          // Replace skill IDs with skill names, filter out any that don't exist
+          project.skills = skills.map((skill) => skill.name).filter((name) => name);
+        }
+        return project;
+      })
+    );
+    
+    return projectsWithSkills;
   }
 
   /**
@@ -151,6 +185,13 @@ export class PortfolioService {
 
     if (project.talentId !== talentId) {
       throw new ForbiddenException('You do not have permission to access this project');
+    }
+
+    // Populate skills with their names
+    if (project.skills && project.skills.length > 0) {
+      const skills = await this.skillService.findByIds(project.skills);
+      // Replace skill IDs with skill names, filter out any that don't exist
+      project.skills = skills.map((skill) => skill.name).filter((name) => name);
     }
 
     return project;
@@ -195,14 +236,26 @@ export class PortfolioService {
         for (const skillName of updateDto.skills) {
           if (typeof skillName === 'string' && skillName.trim()) {
             try {
+              // Clean skill name: remove parentheses and extra whitespace
+              // Example: "Swift (computer programming)" -> "Swift"
+              let cleanedName = skillName.trim();
+              // Remove content in parentheses if present
+              cleanedName = cleanedName.replace(/\s*\([^)]*\)\s*$/, '').trim();
+              
+              if (!cleanedName) {
+                continue; // Skip empty skill names after cleaning
+              }
+              
               const skill = await this.skillService.findOrCreateSkill(
-                skillName.trim(),
+                cleanedName,
                 talentId
               );
               if (skill && skill._id) {
                 skillIds.push(skill._id.toString());
               }
             } catch (error) {
+              // Log the error but continue with other skills
+              console.error(`Error processing skill "${skillName}":`, error);
               throw new BadRequestException(`Invalid skill: ${skillName}`);
             }
           }
@@ -262,7 +315,16 @@ export class PortfolioService {
     }
 
     await project.save();
-    return project.toObject();
+    const projectObj = project.toObject();
+    
+    // Populate skills with their names before returning
+    if (projectObj.skills && projectObj.skills.length > 0) {
+      const skills = await this.skillService.findByIds(projectObj.skills);
+      // Replace skill IDs with skill names, filter out any that don't exist
+      projectObj.skills = skills.map((skill) => skill.name).filter((name) => name);
+    }
+    
+    return projectObj;
   }
 
   /**

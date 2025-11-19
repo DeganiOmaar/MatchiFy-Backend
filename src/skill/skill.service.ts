@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Skill, SkillDocument } from './schemas/skill.schema';
 
 @Injectable()
@@ -39,7 +39,21 @@ export class SkillService {
     if (!skillIds || skillIds.length === 0) {
       return [];
     }
-    return this.skillModel.find({ _id: { $in: skillIds } }).lean();
+    
+    // Filter out invalid ObjectIds to prevent CastError
+    const validIds = skillIds.filter(id => {
+      if (!id || typeof id !== 'string') {
+        return false;
+      }
+      // Check if it's a valid MongoDB ObjectId (24 hex characters)
+      return Types.ObjectId.isValid(id);
+    });
+    
+    if (validIds.length === 0) {
+      return [];
+    }
+    
+    return this.skillModel.find({ _id: { $in: validIds } }).lean();
   }
 
   /**
