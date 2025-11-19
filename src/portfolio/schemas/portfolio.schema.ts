@@ -25,10 +25,10 @@ export class Portfolio {
   media: MediaItem[]; // Array of media items (images, videos, PDFs, external links)
 
   @Prop({
-    type: [String],
+    type: [{ type: String, ref: 'Skill' }],
     default: [],
   })
-  skills: string[];
+  skills: string[]; // Array of Skill ObjectIds
 
   @Prop()
   description?: string; // No length limit in backend

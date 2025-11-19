@@ -10,6 +10,7 @@ import { TalentModule } from './talent/talent.module';
 import { RecruiterModule } from './recruiter/recruiter.module';
 import { MissionsModule } from './missions/missions.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
+import { SkillModule } from './skill/skill.module';
 
 @Module({
   imports: [
@@ -24,7 +25,7 @@ import { PortfolioModule } from './portfolio/portfolio.module';
     }),
 
 
-    AuthModule , UserModule, TalentModule, RecruiterModule, MissionsModule, PortfolioModule],
+    AuthModule , UserModule, TalentModule, RecruiterModule, MissionsModule, PortfolioModule, SkillModule],
   controllers: [AppController],
   providers: [AppService],
 })

@@ -49,12 +49,12 @@ export class User extends Document {
   @Prop()
   description?: string;
 
-  // Talent skills (array of strings, no max limit)
+  // Talent skills (array of skill ObjectIds referencing Skill collection)
   @Prop({
-    type: [String],
+    type: [{ type: String, ref: 'Skill' }],
     default: [],
   })
-  skills?: string[];
+  skills?: string[]; // Array of Skill ObjectIds
 
   // Portfolio link
   @Prop()

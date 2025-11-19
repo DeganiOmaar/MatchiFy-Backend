@@ -11,6 +11,7 @@ import { CreatePortfolioDto } from './dto/create-portfolio.dto';
 import { UpdatePortfolioDto } from './dto/update-portfolio.dto';
 import { MediaItemDto } from './dto/media-item.dto';
 import { MediaItem } from './schemas/media-item.schema';
+import { SkillService } from '../skill/skill.service';
 import { extname } from 'path';
 
 // Allowed extensions for portfolio media
@@ -22,6 +23,7 @@ const allowedPdfExtensions = ['.pdf'];
 export class PortfolioService {
   constructor(
     @InjectModel(Portfolio.name) private portfolioModel: Model<PortfolioDocument>,
+    private readonly skillService: SkillService,
   ) {}
 
   /**
@@ -32,10 +34,34 @@ export class PortfolioService {
     createDto: CreatePortfolioDto,
     mediaFiles?: Express.Multer.File[],
   ) {
+    // Process skills: find or create each skill
+    const skillIds: string[] = [];
+    if (createDto.skills && createDto.skills.length > 0) {
+      if (createDto.skills.length > 10) {
+        throw new BadRequestException('Maximum 10 skills allowed');
+      }
+      
+      for (const skillName of createDto.skills) {
+        if (typeof skillName === 'string' && skillName.trim()) {
+          try {
+            const skill = await this.skillService.findOrCreateSkill(
+              skillName.trim(),
+              talentId
+            );
+            if (skill && skill._id) {
+              skillIds.push(skill._id.toString());
+            }
+          } catch (error) {
+            throw new BadRequestException(`Invalid skill: ${skillName}`);
+          }
+        }
+      }
+    }
+
     const projectData: any = {
       talentId,
       title: createDto.title,
-      skills: createDto.skills || [],
+      skills: skillIds,
       media: [],
     };
 
@@ -159,7 +185,30 @@ export class PortfolioService {
     }
 
     if (updateDto.skills !== undefined) {
-      project.skills = updateDto.skills;
+      // Process skills: find or create each skill
+      const skillIds: string[] = [];
+      if (updateDto.skills.length > 0) {
+        if (updateDto.skills.length > 10) {
+          throw new BadRequestException('Maximum 10 skills allowed');
+        }
+        
+        for (const skillName of updateDto.skills) {
+          if (typeof skillName === 'string' && skillName.trim()) {
+            try {
+              const skill = await this.skillService.findOrCreateSkill(
+                skillName.trim(),
+                talentId
+              );
+              if (skill && skill._id) {
+                skillIds.push(skill._id.toString());
+              }
+            } catch (error) {
+              throw new BadRequestException(`Invalid skill: ${skillName}`);
+            }
+          }
+        }
+      }
+      project.skills = skillIds;
     }
 
     if (updateDto.description !== undefined) {

@@ -38,6 +38,7 @@ async function bootstrap() {
     .addTag('recruiter', 'Recruiter management')
     .addTag('user', 'User management')
     .addTag('portfolio', 'Portfolio management')
+    .addTag('skills', 'Skills management (ESCO)')
     .addBearerAuth()
     .build();
 

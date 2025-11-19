@@ -5,11 +5,15 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { UserService } from '../user/user.service';
+import { SkillService } from '../skill/skill.service';
 import { UpdateTalentProfileDto } from './dto/update-talent-profile.dto';
 
 @Injectable()
 export class TalentService {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly skillService: SkillService,
+  ) {}
 
   /**
    * Get talent profile
@@ -92,7 +96,30 @@ export class TalentService {
     }
 
     if (updateDto.skills !== undefined) {
-      updateData.skills = updateDto.skills;
+      // Limit to 10 skills
+      if (updateDto.skills.length > 10) {
+        throw new BadRequestException('Maximum 10 skills allowed');
+      }
+
+      // Process skills: find or create each skill
+      const skillIds: string[] = [];
+      for (const skillName of updateDto.skills) {
+        if (typeof skillName === 'string' && skillName.trim()) {
+          try {
+            const skill = await this.skillService.findOrCreateSkill(
+              skillName.trim(),
+              userId
+            );
+            if (skill && skill._id) {
+              skillIds.push(skill._id.toString());
+            }
+          } catch (error) {
+            throw new BadRequestException(`Invalid skill: ${skillName}`);
+          }
+        }
+      }
+
+      updateData.skills = skillIds;
     }
 
     if (updateDto.portfolioLink !== undefined) {

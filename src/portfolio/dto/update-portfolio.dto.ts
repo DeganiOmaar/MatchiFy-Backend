@@ -21,8 +21,8 @@ export class UpdatePortfolioDto {
   role?: string;
 
   @ApiPropertyOptional({
-    description: 'List of skills used in the project. Can be sent as JSON string or comma-separated string in multipart/form-data',
-    example: ['React Native', 'Node.js', 'MongoDB', 'TypeScript'],
+    description: 'Array of skill names used in the project. Can be sent as JSON string or comma-separated string in multipart/form-data. Maximum 10 skills allowed. Skills that don\'t exist will be automatically created with source "USER".',
+    example: ['React Native', 'Node.js', 'MongoDB'],
     type: [String],
   })
   @IsOptional()
@@ -39,7 +39,7 @@ export class UpdatePortfolioDto {
   })
   @IsArray()
   @IsString({ each: true })
-  skills?: string[];
+  skills?: string[]; // Array of skill names (not IDs)
 
   @ApiPropertyOptional({
     description: 'Project description (no length limit)',

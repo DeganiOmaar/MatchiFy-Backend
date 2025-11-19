@@ -67,8 +67,8 @@ export class UpdateTalentProfileDto {
   talent?: string[];
 
   @ApiPropertyOptional({
-    description: 'Array of skills. Can be sent as JSON string or comma-separated string in multipart/form-data',
-    example: ['Vocal Performance', 'Songwriting', 'Guitar'],
+    description: 'Array of skill names. Can be sent as JSON string or comma-separated string in multipart/form-data. Maximum 10 skills allowed. Skills that don\'t exist will be automatically created with source "USER".',
+    example: ['React Native', 'Node.js', 'MongoDB'],
     type: [String],
   })
   @IsOptional()
@@ -86,8 +86,9 @@ export class UpdateTalentProfileDto {
     return value;
   })
   @IsArray()
+  @ArrayMaxSize(10, { message: 'Maximum 10 skills allowed' })
   @IsString({ each: true })
-  skills?: string[];
+  skills?: string[]; // Array of skill names (not IDs)
 
   @ApiPropertyOptional({
     description: 'Profile description or bio',
