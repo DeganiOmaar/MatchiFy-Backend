@@ -3,6 +3,8 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -12,12 +14,15 @@ import { UpdateMissionDto } from './dto/update-mission.dto';
 import { MissionsEventsService } from './missions-events.service';
 import { MessageEvent } from '@nestjs/common';
 import { Observable } from 'rxjs';
+import { FavoritesService } from '../favorites/favorites.service';
 
 @Injectable()
 export class MissionsService {
   constructor(
     @InjectModel(Mission.name) private missionModel: Model<MissionDocument>,
-    private readonly missionsEventsService: MissionsEventsService
+    private readonly missionsEventsService: MissionsEventsService,
+    @Inject(forwardRef(() => FavoritesService))
+    private readonly favoritesService: FavoritesService
   ) {}
 
   /**
@@ -52,11 +57,29 @@ export class MissionsService {
    * Récupère toutes les offres de mission (tous les recruteurs)
    * @returns Liste de toutes les offres
    */
-  async findAll(): Promise<MissionDocument[]> {
-    return await this.missionModel
+  async findAll(talentId?: string): Promise<any[]> {
+    const missions = await this.missionModel
       .find()
       .sort({ createdAt: -1 })
       .exec();
+
+    if (talentId) {
+      const missionIds = missions.map((m) => String(m._id));
+      const favoriteStatuses = await this.favoritesService.getFavoriteStatuses(
+        missionIds,
+        talentId
+      );
+
+      return missions.map((mission) => {
+        const missionObj = mission.toObject();
+        return {
+          ...missionObj,
+          isFavorite: favoriteStatuses.get(String(mission._id)) || false,
+        };
+      });
+    }
+
+    return missions.map((mission) => mission.toObject());
   }
 
   /**
@@ -64,25 +87,60 @@ export class MissionsService {
    * @param recruiterId - ID du recruteur
    * @returns Liste des offres du recruteur
    */
-  async findAllByRecruiter(recruiterId: string): Promise<MissionDocument[]> {
-    return await this.missionModel
+  async findAllByRecruiter(
+    recruiterId: string,
+    talentId?: string
+  ): Promise<any[]> {
+    const missions = await this.missionModel
       .find({ recruiterId })
       .sort({ createdAt: -1 })
       .exec();
+
+    if (talentId) {
+      const missionIds = missions.map((m) => String(m._id));
+      const favoriteStatuses = await this.favoritesService.getFavoriteStatuses(
+        missionIds,
+        talentId
+      );
+
+      return missions.map((mission) => {
+        const missionObj = mission.toObject();
+        return {
+          ...missionObj,
+          isFavorite: favoriteStatuses.get(String(mission._id)) || false,
+        };
+      });
+    }
+
+    return missions.map((mission) => mission.toObject());
   }
 
   /**
    * Récupère une offre par son ID
    * @param missionId - ID de l'offre
+   * @param talentId - Optional talent ID to include isFavorite status
    * @returns L'offre trouvée
    * @throws NotFoundException si l'offre n'existe pas
    */
-  async findOne(missionId: string): Promise<MissionDocument> {
+  async findOne(missionId: string, talentId?: string): Promise<any> {
     const mission = await this.missionModel.findById(missionId).exec();
     if (!mission) {
       throw new NotFoundException(`Mission with ID ${missionId} not found`);
     }
-    return mission;
+
+    if (talentId) {
+      const isFavorite = await this.favoritesService.isFavorite(
+        missionId,
+        talentId
+      );
+      const missionObj = mission.toObject();
+      return {
+        ...missionObj,
+        isFavorite,
+      };
+    }
+
+    return mission.toObject();
   }
 
   /**

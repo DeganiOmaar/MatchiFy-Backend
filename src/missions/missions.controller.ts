@@ -177,8 +177,9 @@ export class MissionsController {
       },
     },
   })
-  async findAllMissions() {
-    return this.missionsService.findAll();
+  async findAllMissions(@Request() req: any) {
+    const talentId = req.user.role === 'talent' ? req.user.id : undefined;
+    return this.missionsService.findAll(talentId);
   }
 
   @Sse('stream')
@@ -197,11 +198,11 @@ export class MissionsController {
   }
 
   @Get()
-  @Roles('recruiter')
+  @Roles('recruiter', 'talent')
   @ApiOperation({
     summary: 'Get all mission offers for the authenticated recruiter',
     description:
-      'Retrieves all mission offers created by the authenticated recruiter. Results are sorted by creation date (newest first).',
+      'Retrieves all mission offers created by the authenticated recruiter. Results are sorted by creation date (newest first). For talents, includes isFavorite status.',
   })
   @ApiResponse({
     status: 200,
@@ -257,7 +258,8 @@ export class MissionsController {
   })
   async findAll(@Request() req: any) {
     const recruiterId = req.user.id;
-    return this.missionsService.findAllByRecruiter(recruiterId);
+    const talentId = req.user.role === 'talent' ? req.user.id : undefined;
+    return this.missionsService.findAllByRecruiter(recruiterId, talentId);
   }
 
   @Get(':id')
@@ -328,8 +330,8 @@ export class MissionsController {
     },
   })
   async findOne(@Param('id') id: string, @Request() req: any) {
-    const mission = await this.missionsService.findOne(id);
-    const missionObj = mission.toObject();
+    const talentId = req.user.role === 'talent' ? req.user.id : undefined;
+    const mission = await this.missionsService.findOne(id, talentId);
     
     // Add hasApplied field for talents
     if (req.user.role === 'talent') {
@@ -337,12 +339,10 @@ export class MissionsController {
         id,
         req.user.id
       );
-      missionObj.hasApplied = hasApplied;
-    } else {
-      missionObj.hasApplied = false;
+      return { ...mission, hasApplied };
     }
     
-    return missionObj;
+    return mission;
   }
 
   @Put(':id')

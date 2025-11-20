@@ -13,6 +13,7 @@ import { PortfolioModule } from './portfolio/portfolio.module';
 import { SkillModule } from './skill/skill.module';
 import { ProposalsModule } from './proposals/proposals.module';
 import { ConversationsModule } from './conversations/conversations.module';
+import { FavoritesModule } from './favorites/favorites.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { ConversationsModule } from './conversations/conversations.module';
     SkillModule,
     ProposalsModule,
     ConversationsModule,
+    FavoritesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
