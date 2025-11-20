@@ -20,3 +20,4 @@ export const FavoriteSchema = SchemaFactory.createForClass(Favorite);
 // Compound index to ensure one favorite per talent-mission pair
 FavoriteSchema.index({ talentId: 1, missionId: 1 }, { unique: true });
 
+
