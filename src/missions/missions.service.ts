@@ -170,5 +170,20 @@ export class MissionsService {
   getMissionUpdates(): Observable<MessageEvent> {
     return this.missionsEventsService.stream();
   }
+
+  async incrementProposalCount(
+    missionId: string,
+    value: number = 1
+  ): Promise<void> {
+    await this.missionModel
+      .findByIdAndUpdate(
+        missionId,
+        {
+          $inc: { proposalsCount: value },
+        },
+        { new: true }
+      )
+      .exec();
+  }
 }
 

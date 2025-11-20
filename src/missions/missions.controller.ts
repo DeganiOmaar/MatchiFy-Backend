@@ -28,13 +28,19 @@ import { MissionsService } from './missions.service';
 import { CreateMissionDto } from './dto/create-mission.dto';
 import { UpdateMissionDto } from './dto/update-mission.dto';
 import { Observable } from 'rxjs';
+import { ProposalsService } from 'src/proposals/proposals.service';
+import { Inject, forwardRef } from '@nestjs/common';
 
 @ApiTags('missions')
 @Controller('missions')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class MissionsController {
-  constructor(private readonly missionsService: MissionsService) {}
+  constructor(
+    private readonly missionsService: MissionsService,
+    @Inject(forwardRef(() => ProposalsService))
+    private readonly proposalsService: ProposalsService
+  ) {}
 
   @Post()
   @Roles('recruiter', 'talent')
@@ -321,8 +327,22 @@ export class MissionsController {
       },
     },
   })
-  async findOne(@Param('id') id: string) {
-    return this.missionsService.findOne(id);
+  async findOne(@Param('id') id: string, @Request() req: any) {
+    const mission = await this.missionsService.findOne(id);
+    const missionObj = mission.toObject();
+    
+    // Add hasApplied field for talents
+    if (req.user.role === 'talent') {
+      const hasApplied = await this.proposalsService.hasTalentApplied(
+        id,
+        req.user.id
+      );
+      missionObj.hasApplied = hasApplied;
+    } else {
+      missionObj.hasApplied = false;
+    }
+    
+    return missionObj;
   }
 
   @Put(':id')
