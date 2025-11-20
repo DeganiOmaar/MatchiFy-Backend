@@ -12,6 +12,7 @@ import { MissionsModule } from './missions/missions.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
 import { SkillModule } from './skill/skill.module';
 import { ProposalsModule } from './proposals/proposals.module';
+import { ConversationsModule } from './conversations/conversations.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { ProposalsModule } from './proposals/proposals.module';
     PortfolioModule,
     SkillModule,
     ProposalsModule,
+    ConversationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -45,6 +45,12 @@ export class ProposalsController {
     return this.proposalsService.findByRecruiter(req.user.id);
   }
 
+  @Get(':id')
+  @Roles('talent', 'recruiter')
+  async getProposal(@Param('id') id: string, @Request() req: any) {
+    return this.proposalsService.findOne(id, req.user.id, req.user.role);
+  }
+
   @Get('mission/:missionId/count')
   @Roles('talent', 'recruiter')
   async getMissionCount(@Param('missionId') missionId: string) {

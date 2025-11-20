@@ -40,6 +40,9 @@ export class Proposal extends Document {
 
   @Prop()
   talentName?: string;
+
+  @Prop()
+  recruiterName?: string;
 }
 
 export type ProposalDocument = Proposal & Document;

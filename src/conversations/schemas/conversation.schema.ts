@@ -1,0 +1,49 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document } from 'mongoose';
+
+export interface ConversationDocument extends Conversation, Document {
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+@Schema({ timestamps: true })
+export class Conversation extends Document {
+  @Prop({ type: String, index: true })
+  missionId?: string;
+
+  @Prop({ required: true, type: String, index: true })
+  recruiterId: string;
+
+  @Prop({ required: true, type: String, index: true })
+  talentId: string;
+
+  @Prop()
+  lastMessageText?: string;
+
+  @Prop()
+  lastMessageAt?: Date;
+
+  // Talent information (for recruiter view)
+  @Prop()
+  talentName?: string;
+
+  @Prop()
+  talentProfileImage?: string;
+
+  // Recruiter information (for talent view)
+  @Prop()
+  recruiterName?: string;
+
+  @Prop()
+  recruiterProfileImage?: string;
+}
+
+export const ConversationSchema = SchemaFactory.createForClass(Conversation);
+
+// Compound index to ensure one conversation per recruiter-talent-mission pair
+// Use sparse index to handle null missionId
+ConversationSchema.index(
+  { recruiterId: 1, talentId: 1, missionId: 1 },
+  { unique: true, sparse: true }
+);
+

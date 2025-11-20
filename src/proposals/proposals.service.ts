@@ -7,6 +7,8 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { MissionsService } from 'src/missions/missions.service';
+import { UserService } from 'src/user/user.service';
+import { ConversationsService } from 'src/conversations/conversations.service';
 import {
   Proposal,
   ProposalDocument,
@@ -25,7 +27,9 @@ export class ProposalsService {
   constructor(
     @InjectModel(Proposal.name)
     private readonly proposalModel: Model<ProposalDocument>,
-    private readonly missionsService: MissionsService
+    private readonly missionsService: MissionsService,
+    private readonly userService: UserService,
+    private readonly conversationsService: ConversationsService
   ) {}
 
   async create(
@@ -61,10 +65,15 @@ export class ProposalsService {
       throw new BadRequestException('Mission recruiter is missing');
     }
 
+    // Get recruiter name
+    const recruiter = await this.userService.findById(recruiterId);
+    const recruiterName = recruiter?.fullName || 'Recruiter';
+
     const proposal = new this.proposalModel({
       missionId: createProposalDto.missionId,
       missionTitle: mission.title,
       recruiterId,
+      recruiterName,
       talentId: talent.id,
       talentName: talent.fullName,
       message: createProposalDto.message,
@@ -106,6 +115,29 @@ export class ProposalsService {
     return !!proposal;
   }
 
+  async findOne(
+    proposalId: string,
+    userId: string,
+    userRole: string
+  ): Promise<Proposal> {
+    const proposal = await this.proposalModel.findById(proposalId).exec();
+    if (!proposal) {
+      throw new NotFoundException(`Proposal ${proposalId} not found`);
+    }
+
+    // Auto-mark as VIEWED if recruiter opens and status is NOT_VIEWED
+    if (
+      userRole === 'recruiter' &&
+      proposal.recruiterId === userId &&
+      proposal.status === ProposalStatus.NOT_VIEWED
+    ) {
+      proposal.status = ProposalStatus.VIEWED;
+      await proposal.save();
+    }
+
+    return proposal;
+  }
+
   async updateStatus(
     proposalId: string,
     recruiterId: string,
@@ -122,8 +154,31 @@ export class ProposalsService {
       );
     }
 
+    const previousStatus = proposal.status;
     proposal.status = updateProposalStatusDto.status;
-    return proposal.save();
+    const saved = await proposal.save();
+
+    // Create conversation when proposal is accepted
+    if (
+      updateProposalStatusDto.status === ProposalStatus.ACCEPTED &&
+      previousStatus !== ProposalStatus.ACCEPTED
+    ) {
+      try {
+        await this.conversationsService.findOrCreate(
+          {
+            missionId: proposal.missionId,
+            talentId: proposal.talentId,
+          },
+          recruiterId,
+          'recruiter'
+        );
+      } catch (error) {
+        // Log error but don't fail the proposal update
+        console.error('Failed to create conversation:', error);
+      }
+    }
+
+    return saved;
   }
 }
 
