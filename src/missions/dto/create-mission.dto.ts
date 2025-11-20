@@ -1,12 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsString,
-  IsNotEmpty,
-  IsNumber,
-  IsArray,
-  ArrayMaxSize,
-  Min,
-} from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsArray, Min } from 'class-validator';
 
 export class CreateMissionDto {
   @ApiProperty({

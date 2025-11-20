@@ -255,7 +255,7 @@ export class MissionsController {
   }
 
   @Get(':id')
-  @Roles('recruiter')
+  @Roles('recruiter', 'talent')
   @ApiOperation({
     summary: 'Get a single mission offer by ID',
     description:
@@ -277,8 +277,13 @@ export class MissionsController {
           'Nous recherchons un développeur full stack expérimenté pour rejoindre notre équipe et travailler sur des projets innovants utilisant React et Node.js.',
         duration: '6 mois',
         budget: 50000,
+        price: 50000,
         skills: ['React', 'Node.js', 'TypeScript', 'MongoDB', 'Express'],
         recruiterId: '673ab2c3e8f9a1234567890b',
+        missionId: '673ab2c3e8f9a1234567890c',
+        ownerId: '673ab2c3e8f9a1234567890b',
+        proposalsCount: 12,
+        interviewingCount: 3,
         createdAt: '2025-01-15T10:30:00.000Z',
         updatedAt: '2025-01-15T10:30:00.000Z',
       },
