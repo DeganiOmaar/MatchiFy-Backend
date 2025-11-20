@@ -174,6 +174,31 @@ export class PortfolioService {
   }
 
   /**
+   * Get all projects for a talent by talentId (public access for recruiters)
+   * This method does not check ownership, allowing recruiters to view talent portfolios
+   */
+  async findAllByTalentId(talentId: string) {
+    const projects = await this.portfolioModel
+      .find({ talentId })
+      .sort({ createdAt: -1 }) // Newest first
+      .lean();
+    
+    // Populate skills with their names
+    const projectsWithSkills = await Promise.all(
+      projects.map(async (project) => {
+        if (project.skills && project.skills.length > 0) {
+          const skills = await this.skillService.findByIds(project.skills);
+          // Replace skill IDs with skill names, filter out any that don't exist
+          project.skills = skills.map((skill) => skill.name).filter((name) => name);
+        }
+        return project;
+      })
+    );
+    
+    return projectsWithSkills;
+  }
+
+  /**
    * Get a single project by ID
    */
   async findOne(projectId: string, talentId: string) {
