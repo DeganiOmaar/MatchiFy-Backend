@@ -28,6 +28,20 @@ export class ConversationsController {
     return this.conversationsService.findAll(req.user.id, req.user.role);
   }
 
+  @Get('unread-count')
+  @Roles('talent', 'recruiter')
+  async getUnreadCount(@Request() req: any) {
+    const count = await this.conversationsService.getUnreadCount(req.user.id);
+    return { count };
+  }
+
+  @Get('conversations-with-unread')
+  @Roles('talent', 'recruiter')
+  async getConversationsWithUnread(@Request() req: any) {
+    const count = await this.conversationsService.getConversationsWithUnreadCount(req.user.id);
+    return { count };
+  }
+
   @Get(':id')
   @Roles('talent', 'recruiter')
   async getConversation(@Param('id') id: string, @Request() req: any) {
@@ -38,6 +52,13 @@ export class ConversationsController {
   @Roles('talent', 'recruiter')
   async getMessages(@Param('id') id: string, @Request() req: any) {
     return this.conversationsService.getMessages(id, req.user.id, req.user.role);
+  }
+
+  @Get(':id/unread-count')
+  @Roles('talent', 'recruiter')
+  async getConversationUnreadCount(@Param('id') id: string, @Request() req: any) {
+    const count = await this.conversationsService.getConversationUnreadCount(id, req.user.id, req.user.role);
+    return { count };
   }
 
   @Post()
@@ -63,6 +84,19 @@ export class ConversationsController {
     return this.conversationsService.sendMessage(
       id,
       dto,
+      req.user.id,
+      req.user.role
+    );
+  }
+
+  @Post(':id/mark-read')
+  @Roles('talent', 'recruiter')
+  async markConversationAsRead(
+    @Param('id') id: string,
+    @Request() req: any
+  ) {
+    return this.conversationsService.markConversationAsRead(
+      id,
       req.user.id,
       req.user.role
     );

@@ -205,12 +205,24 @@ export class ConversationsService {
     // Verify conversation access
     const conversation = await this.findOne(conversationId, userId, userRole);
 
-    // Create message
+    // Determine receiver ID
+    const receiverId =
+      userRole === 'recruiter'
+        ? conversation.talentId
+        : conversation.recruiterId;
+
+    // Create message with isRead = false for receiver, isRead = true for sender
     const message = new this.messageModel({
       conversationId,
       senderId: userId,
+      receiverId: receiverId,
       text: createMessageDto.text,
+      isRead: false, // False for receiver, will be set correctly below
     });
+    
+    // Set isRead = true for sender (the current user)
+    // Since we're creating the message, the sender has "read" it by sending it
+    // The receiver hasn't read it yet, so isRead stays false
 
     const savedMessage = await message.save();
 
@@ -220,6 +232,80 @@ export class ConversationsService {
     await conversation.save();
 
     return savedMessage;
+  }
+
+  /**
+   * Get unread messages count for the authenticated user
+   */
+  async getUnreadCount(userId: string): Promise<number> {
+    return this.messageModel.countDocuments({
+      receiverId: userId,
+      isRead: false,
+    }).exec();
+  }
+
+  /**
+   * Get number of conversations that have unread messages for the authenticated user
+   */
+  async getConversationsWithUnreadCount(userId: string): Promise<number> {
+    // Get all unique conversation IDs that have unread messages for this user
+    const conversationsWithUnread = await this.messageModel
+      .distinct('conversationId', {
+        receiverId: userId,
+        isRead: false,
+      })
+      .exec();
+
+    return conversationsWithUnread.length;
+  }
+
+  /**
+   * Get unread messages count for a specific conversation
+   */
+  async getConversationUnreadCount(
+    conversationId: string,
+    userId: string,
+    userRole: string
+  ): Promise<number> {
+    // Verify conversation access
+    await this.findOne(conversationId, userId, userRole);
+
+    // Count unread messages in this conversation for the current user
+    return this.messageModel.countDocuments({
+      conversationId,
+      receiverId: userId,
+      isRead: false,
+    }).exec();
+  }
+
+  /**
+   * Mark all messages in a conversation as read for the authenticated user
+   */
+  async markConversationAsRead(
+    conversationId: string,
+    userId: string,
+    userRole: string
+  ): Promise<{ count: number }> {
+    // Verify conversation access
+    await this.findOne(conversationId, userId, userRole);
+
+    // Mark all unread messages in this conversation as read for the current user
+    // Only mark messages where the user is the receiver (not the sender)
+    const result = await this.messageModel
+      .updateMany(
+        {
+          conversationId,
+          receiverId: userId,
+          isRead: false,
+        },
+        {
+          isRead: true,
+          seenAt: new Date(),
+        }
+      )
+      .exec();
+
+    return { count: result.modifiedCount };
   }
 }
 

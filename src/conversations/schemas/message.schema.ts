@@ -14,8 +14,14 @@ export class Message extends Document {
   @Prop({ required: true, type: String, index: true })
   senderId: string;
 
+  @Prop({ required: true, type: String, index: true })
+  receiverId: string;
+
   @Prop({ required: true })
   text: string;
+
+  @Prop({ default: false, index: true })
+  isRead: boolean;
 
   @Prop()
   seenAt?: Date;
