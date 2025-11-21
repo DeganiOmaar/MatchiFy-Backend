@@ -58,6 +58,13 @@ export class ProposalsController {
     return { missionId, count };
   }
 
+  @Get('recruiter/unread-count')
+  @Roles('recruiter')
+  async getRecruiterUnreadCount(@Request() req: any) {
+    const count = await this.proposalsService.getUnreadCountForRecruiter(req.user.id);
+    return { count };
+  }
+
   @Patch(':id/status')
   @Roles('recruiter')
   async updateStatus(

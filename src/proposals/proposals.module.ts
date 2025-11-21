@@ -7,6 +7,7 @@ import { AuthModule } from 'src/auth/auth.module';
 import { MissionsModule } from 'src/missions/missions.module';
 import { UserModule } from 'src/user/user.module';
 import { ConversationsModule } from 'src/conversations/conversations.module';
+import { AlertsModule } from 'src/alerts/alerts.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { ConversationsModule } from 'src/conversations/conversations.module';
     forwardRef(() => MissionsModule),
     UserModule,
     ConversationsModule,
+    AlertsModule,
     MongooseModule.forFeature([{ name: Proposal.name, schema: ProposalSchema }]),
   ],
   controllers: [ProposalsController],

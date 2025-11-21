@@ -9,6 +9,8 @@ import { Model } from 'mongoose';
 import { MissionsService } from 'src/missions/missions.service';
 import { UserService } from 'src/user/user.service';
 import { ConversationsService } from 'src/conversations/conversations.service';
+import { AlertsService } from 'src/alerts/alerts.service';
+import { AlertType } from 'src/alerts/schemas/alert.schema';
 import {
   Proposal,
   ProposalDocument,
@@ -29,7 +31,8 @@ export class ProposalsService {
     private readonly proposalModel: Model<ProposalDocument>,
     private readonly missionsService: MissionsService,
     private readonly userService: UserService,
-    private readonly conversationsService: ConversationsService
+    private readonly conversationsService: ConversationsService,
+    private readonly alertsService: AlertsService
   ) {}
 
   async create(
@@ -87,6 +90,27 @@ export class ProposalsService {
     
     // Populate talent information in the response
     const talentUser = await this.userService.findById(talent.id);
+    
+    // Create alert for recruiter (mission owner)
+    try {
+      const talentFullName = talent.fullName || talentUser?.fullName || 'A talent';
+      await this.alertsService.create({
+        userId: recruiterId,
+        type: AlertType.PROPOSAL_SUBMITTED,
+        missionId: proposal.missionId,
+        proposalId: (saved._id as any).toString(),
+        title: `${talentFullName} has applied to ${mission.title}`,
+        message: `${talentFullName} has submitted a proposal for your mission "${mission.title}".`,
+        talentId: talent.id,
+        talentName: talentFullName,
+        talentProfileImage: talentUser?.profileImage,
+        missionTitle: mission.title,
+      });
+    } catch (error) {
+      // Log error but don't fail proposal creation
+      console.error('Failed to create alert for proposal:', error);
+    }
+    
     return {
       ...saved.toObject(),
       talent: talentUser
@@ -158,6 +182,13 @@ export class ProposalsService {
       })
       .exec();
     return !!proposal;
+  }
+
+  async getUnreadCountForRecruiter(recruiterId: string): Promise<number> {
+    return this.proposalModel.countDocuments({
+      recruiterId,
+      status: ProposalStatus.NOT_VIEWED,
+    }).exec();
   }
 
   async findOne(
@@ -233,6 +264,45 @@ export class ProposalsService {
         // Log error but don't fail the proposal update
         console.error('Failed to create conversation:', error);
       }
+    }
+
+    // Create alert for talent when proposal status changes
+    try {
+      const mission = await this.missionsService.findOne(proposal.missionId);
+      const recruiter = await this.userService.findById(recruiterId);
+      const recruiterName = recruiter?.fullName || 'Recruiter';
+      const missionTitle = mission?.title || proposal.missionTitle || 'Mission';
+
+      if (updateProposalStatusDto.status === ProposalStatus.ACCEPTED) {
+        await this.alertsService.create({
+          userId: proposal.talentId,
+          type: AlertType.PROPOSAL_ACCEPTED,
+          missionId: proposal.missionId,
+          proposalId: (proposal._id as any).toString(),
+          title: `Your proposal for ${missionTitle} has been accepted`,
+          message: `Great news! Your proposal for "${missionTitle}" has been accepted by ${recruiterName}.`,
+          recruiterId: recruiterId,
+          recruiterName: recruiterName,
+          recruiterProfileImage: recruiter?.profileImage,
+          missionTitle: missionTitle,
+        });
+      } else if (updateProposalStatusDto.status === ProposalStatus.REFUSED) {
+        await this.alertsService.create({
+          userId: proposal.talentId,
+          type: AlertType.PROPOSAL_REFUSED,
+          missionId: proposal.missionId,
+          proposalId: (proposal._id as any).toString(),
+          title: `Your proposal for ${missionTitle} has been refused`,
+          message: `Your proposal for "${missionTitle}" has been refused by ${recruiterName}.`,
+          recruiterId: recruiterId,
+          recruiterName: recruiterName,
+          recruiterProfileImage: recruiter?.profileImage,
+          missionTitle: missionTitle,
+        });
+      }
+    } catch (error) {
+      // Log error but don't fail the proposal update
+      console.error('Failed to create alert for proposal status update:', error);
     }
 
     // Populate talent information in the response
