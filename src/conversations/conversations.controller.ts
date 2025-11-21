@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -96,6 +97,19 @@ export class ConversationsController {
     @Request() req: any
   ) {
     return this.conversationsService.markConversationAsRead(
+      id,
+      req.user.id,
+      req.user.role
+    );
+  }
+
+  @Delete(':id')
+  @Roles('talent', 'recruiter')
+  async deleteConversation(
+    @Param('id') id: string,
+    @Request() req: any
+  ) {
+    return this.conversationsService.deleteConversation(
       id,
       req.user.id,
       req.user.role

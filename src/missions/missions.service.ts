@@ -243,5 +243,38 @@ export class MissionsService {
       )
       .exec();
   }
+
+  async updateStatus(
+    missionId: string,
+    status: string,
+    recruiterId: string
+  ): Promise<MissionDocument> {
+    const mission = await this.findOne(missionId);
+    
+    if (mission.recruiterId.toString() !== recruiterId) {
+      throw new ForbiddenException(
+        'You do not have permission to update this mission status'
+      );
+    }
+
+    const updatedMission = await this.missionModel
+      .findByIdAndUpdate(
+        missionId,
+        { status },
+        { new: true, runValidators: true }
+      )
+      .exec();
+
+    if (!updatedMission) {
+      throw new NotFoundException(`Failed to update mission ${missionId}`);
+    }
+
+    this.missionsEventsService.emit({
+      type: 'mission_updated',
+      mission: this.missionsEventsService.toPlainMission(updatedMission),
+    });
+
+    return updatedMission;
+  }
 }
 

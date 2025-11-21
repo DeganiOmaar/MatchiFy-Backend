@@ -36,6 +36,11 @@ export class Conversation extends Document {
 
   @Prop()
   recruiterProfileImage?: string;
+
+  // Array of user IDs who have deleted this conversation
+  // Conversation is only hidden for users in this array
+  @Prop({ type: [String], default: [] })
+  deletedBy?: string[];
 }
 
 export const ConversationSchema = SchemaFactory.createForClass(Conversation);

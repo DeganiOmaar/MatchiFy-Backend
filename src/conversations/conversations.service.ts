@@ -87,12 +87,13 @@ export class ConversationsService {
 
   /**
    * Get all conversations for the logged-in user
+   * Excludes conversations deleted by the current user
    */
   async findAll(userId: string, userRole: string): Promise<Conversation[]> {
     const query =
       userRole === 'recruiter'
-        ? { recruiterId: userId }
-        : { talentId: userId };
+        ? { recruiterId: userId, deletedBy: { $ne: userId } }
+        : { talentId: userId, deletedBy: { $ne: userId } };
 
     const conversations = await this.conversationModel
       .find(query)
@@ -306,6 +307,105 @@ export class ConversationsService {
       .exec();
 
     return { count: result.modifiedCount };
+  }
+
+  /**
+   * Send a contract message in a conversation
+   */
+  async sendContractMessage(
+    conversationId: string,
+    contractId: string,
+    pdfUrl: string,
+    userId: string,
+    isSigned: boolean = false
+  ): Promise<Message> {
+    // Get conversation to determine role
+    const conversation = await this.conversationModel
+      .findById(conversationId)
+      .exec();
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    // Determine user role
+    const userRole =
+      userId === conversation.recruiterId.toString() ? 'recruiter' : 'talent';
+
+    // Verify conversation access
+    await this.findOne(conversationId, userId, userRole);
+
+    // Determine receiver ID
+    const receiverId =
+      userRole === 'recruiter'
+        ? conversation.talentId
+        : conversation.recruiterId;
+
+    // Determine message text based on contract status
+    let messageText: string;
+    if (isSigned) {
+      messageText = 'Contract signed by both parties';
+    } else {
+      // Check if this is from talent (sending signed contract back)
+      messageText = userRole === 'talent' 
+        ? 'Talent signed the contract'
+        : 'New contract sent';
+    }
+
+    // Create message with contract info
+    const message = new this.messageModel({
+      conversationId,
+      senderId: userId,
+      receiverId: receiverId,
+      text: messageText,
+      isRead: false,
+      contractId,
+      pdfUrl,
+      isContractMessage: true,
+    });
+
+    const savedMessage = await message.save();
+
+    // Update conversation's last message
+    conversation.lastMessageText = messageText;
+    conversation.lastMessageAt = new Date();
+    await conversation.save();
+
+    return savedMessage;
+  }
+
+  /**
+   * Delete a conversation for the current user
+   * This doesn't actually delete the conversation, just marks it as deleted for this user
+   * The other user will still see the conversation
+   */
+  async deleteConversation(
+    conversationId: string,
+    userId: string,
+    userRole: string
+  ): Promise<Conversation> {
+    const conversation = await this.conversationModel
+      .findById(conversationId)
+      .exec();
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    // Verify user has access to this conversation
+    await this.findOne(conversationId, userId, userRole);
+
+    // Add userId to deletedBy array if not already present
+    if (!conversation.deletedBy) {
+      conversation.deletedBy = [];
+    }
+
+    if (!conversation.deletedBy.includes(userId)) {
+      conversation.deletedBy.push(userId);
+      await conversation.save();
+    }
+
+    return conversation;
   }
 }
 

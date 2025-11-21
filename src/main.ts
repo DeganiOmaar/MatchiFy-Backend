@@ -1,9 +1,10 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, BadRequestException } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
+import { ValidationExceptionFilter } from './common/filters/validation-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -19,14 +20,25 @@ async function bootstrap() {
   // Enable CORS
   app.enableCors();
 
-  // Global validation pipe
+  // Global validation pipe with detailed error messages
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      exceptionFactory: (errors) => {
+        const messages = errors.map((error) => {
+          const constraints = error.constraints || {};
+          const firstConstraint = Object.values(constraints)[0];
+          return firstConstraint || `${error.property} is invalid`;
+        });
+        return new BadRequestException(messages);
+      },
     }),
   );
+
+  // Global exception filter for validation errors
+  app.useGlobalFilters(new ValidationExceptionFilter());
 
   // Swagger configuration 
   const config = new DocumentBuilder()

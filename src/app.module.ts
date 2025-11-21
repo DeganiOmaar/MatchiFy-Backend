@@ -15,6 +15,7 @@ import { ProposalsModule } from './proposals/proposals.module';
 import { ConversationsModule } from './conversations/conversations.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { AlertsModule } from './alerts/alerts.module';
+import { ContractModule } from './contract/contract.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { AlertsModule } from './alerts/alerts.module';
     ConversationsModule,
     FavoritesModule,
     AlertsModule,
+    ContractModule,
   ],
   controllers: [AppController],
   providers: [AppService],

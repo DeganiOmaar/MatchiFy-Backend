@@ -122,9 +122,22 @@ export class ProposalsService {
     };
   }
 
-  async findByTalent(talentId: string): Promise<any[]> {
+  async findByTalent(
+    talentId: string,
+    filters?: { missionId?: string; archived?: boolean }
+  ): Promise<any[]> {
+    const query: any = { talentId };
+    
+    if (filters?.missionId) {
+      query.missionId = filters.missionId;
+    }
+    
+    if (filters?.archived !== undefined) {
+      query.archived = filters.archived;
+    }
+    
     const proposals = await this.proposalModel
-      .find({ talentId })
+      .find(query)
       .sort({ createdAt: -1 })
       .lean()
       .exec();
@@ -146,9 +159,18 @@ export class ProposalsService {
     );
   }
 
-  async findByRecruiter(recruiterId: string): Promise<any[]> {
+  async findByRecruiter(
+    recruiterId: string,
+    missionId?: string
+  ): Promise<any[]> {
+    const query: any = { recruiterId };
+    
+    if (missionId) {
+      query.missionId = missionId;
+    }
+    
     const proposals = await this.proposalModel
-      .find({ recruiterId })
+      .find(query)
       .sort({ createdAt: -1 })
       .lean()
       .exec();
@@ -168,6 +190,37 @@ export class ProposalsService {
         };
       })
     );
+  }
+
+  async findByMissionGrouped(recruiterId: string): Promise<any> {
+    const proposals = await this.proposalModel
+      .find({ recruiterId })
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec();
+    
+    // Group by missionId
+    const grouped: { [key: string]: any[] } = {};
+    
+    for (const proposal of proposals) {
+      const missionId = proposal.missionId;
+      if (!grouped[missionId]) {
+        grouped[missionId] = [];
+      }
+      
+      const talent = await this.userService.findById(proposal.talentId);
+      grouped[missionId].push({
+        ...proposal,
+        talent: talent
+          ? {
+              fullName: talent.fullName,
+              email: talent.email,
+            }
+          : null,
+      });
+    }
+    
+    return grouped;
   }
 
   async countByMission(missionId: string): Promise<number> {
@@ -306,6 +359,47 @@ export class ProposalsService {
     }
 
     // Populate talent information in the response
+    const talent = await this.userService.findById(proposal.talentId);
+    return {
+      ...saved.toObject(),
+      talent: talent
+        ? {
+            fullName: talent.fullName,
+            email: talent.email,
+          }
+        : null,
+    };
+  }
+
+  async archiveProposal(
+    proposalId: string,
+    talentId: string
+  ): Promise<any> {
+    const proposal = await this.proposalModel.findById(proposalId).exec();
+    if (!proposal) {
+      throw new NotFoundException(`Proposal ${proposalId} not found`);
+    }
+
+    if (proposal.talentId !== talentId) {
+      throw new ForbiddenException(
+        'You do not have permission to archive this proposal'
+      );
+    }
+
+    // Check if proposal can be archived
+    const mission = await this.missionsService.findOne(proposal.missionId);
+    const canArchive =
+      mission.status === 'completed' || proposal.status === ProposalStatus.REFUSED;
+
+    if (!canArchive) {
+      throw new BadRequestException(
+        'Proposal can only be archived if mission is completed or proposal was refused'
+      );
+    }
+
+    proposal.archived = true;
+    const saved = await proposal.save();
+
     const talent = await this.userService.findById(proposal.talentId);
     return {
       ...saved.toObject(),

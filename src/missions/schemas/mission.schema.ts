@@ -34,6 +34,14 @@ export class Mission extends Document {
 
   @Prop({ required: true, type: String, index: true })
   recruiterId: string;
+
+  @Prop({
+    type: String,
+    enum: ['in_progress', 'started', 'completed'],
+    default: 'in_progress',
+    index: true,
+  })
+  status: string;
 }
 
 export const MissionSchema = SchemaFactory.createForClass(Mission);

@@ -25,6 +25,15 @@ export class Message extends Document {
 
   @Prop()
   seenAt?: Date;
+
+  @Prop({ type: String, index: true })
+  contractId?: string;
+
+  @Prop({ type: String })
+  pdfUrl?: string;
+
+  @Prop({ type: Boolean, default: false })
+  isContractMessage?: boolean;
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);

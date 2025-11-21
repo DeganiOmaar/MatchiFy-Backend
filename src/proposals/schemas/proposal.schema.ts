@@ -43,6 +43,9 @@ export class Proposal extends Document {
 
   @Prop()
   recruiterName?: string;
+
+  @Prop({ type: Boolean, default: false, index: true })
+  archived: boolean;
 }
 
 export type ProposalDocument = Proposal & Document;

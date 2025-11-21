@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
@@ -35,14 +36,30 @@ export class ProposalsController {
 
   @Get('talent')
   @Roles('talent')
-  async getTalentProposals(@Request() req: any) {
-    return this.proposalsService.findByTalent(req.user.id);
+  async getTalentProposals(
+    @Request() req: any,
+    @Query('missionId') missionId?: string,
+    @Query('archived') archived?: string
+  ) {
+    const filters: any = {};
+    if (missionId) filters.missionId = missionId;
+    if (archived !== undefined) filters.archived = archived === 'true';
+    return this.proposalsService.findByTalent(req.user.id, filters);
   }
 
   @Get('recruiter')
   @Roles('recruiter')
-  async getRecruiterProposals(@Request() req: any) {
-    return this.proposalsService.findByRecruiter(req.user.id);
+  async getRecruiterProposals(
+    @Request() req: any,
+    @Query('missionId') missionId?: string
+  ) {
+    return this.proposalsService.findByRecruiter(req.user.id, missionId);
+  }
+
+  @Get('recruiter/grouped')
+  @Roles('recruiter')
+  async getRecruiterProposalsGrouped(@Request() req: any) {
+    return this.proposalsService.findByMissionGrouped(req.user.id);
   }
 
   @Get(':id')
@@ -73,6 +90,15 @@ export class ProposalsController {
     @Body() dto: UpdateProposalStatusDto
   ) {
     return this.proposalsService.updateStatus(id, req.user.id, dto);
+  }
+
+  @Patch(':id/archive')
+  @Roles('talent')
+  async archiveProposal(
+    @Param('id') id: string,
+    @Request() req: any
+  ) {
+    return this.proposalsService.archiveProposal(id, req.user.id);
   }
 }
 
