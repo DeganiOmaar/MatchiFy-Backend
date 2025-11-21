@@ -35,7 +35,7 @@ export class ProposalsService {
   async create(
     createProposalDto: CreateProposalDto,
     talent: TalentContext
-  ): Promise<Proposal> {
+  ): Promise<any> {
     const mission = await this.missionsService.findOne(
       createProposalDto.missionId
     );
@@ -84,21 +84,66 @@ export class ProposalsService {
 
     const saved = await proposal.save();
     await this.missionsService.incrementProposalCount(proposal.missionId, 1);
-    return saved;
+    
+    // Populate talent information in the response
+    const talentUser = await this.userService.findById(talent.id);
+    return {
+      ...saved.toObject(),
+      talent: talentUser
+        ? {
+            fullName: talentUser.fullName,
+            email: talentUser.email,
+          }
+        : null,
+    };
   }
 
-  async findByTalent(talentId: string): Promise<Proposal[]> {
-    return this.proposalModel
+  async findByTalent(talentId: string): Promise<any[]> {
+    const proposals = await this.proposalModel
       .find({ talentId })
       .sort({ createdAt: -1 })
+      .lean()
       .exec();
+    
+    // Populate talent information for each proposal
+    return Promise.all(
+      proposals.map(async (proposal) => {
+        const talent = await this.userService.findById(proposal.talentId);
+        return {
+          ...proposal,
+          talent: talent
+            ? {
+                fullName: talent.fullName,
+                email: talent.email,
+              }
+            : null,
+        };
+      })
+    );
   }
 
-  async findByRecruiter(recruiterId: string): Promise<Proposal[]> {
-    return this.proposalModel
+  async findByRecruiter(recruiterId: string): Promise<any[]> {
+    const proposals = await this.proposalModel
       .find({ recruiterId })
       .sort({ createdAt: -1 })
+      .lean()
       .exec();
+    
+    // Populate talent information for each proposal
+    return Promise.all(
+      proposals.map(async (proposal) => {
+        const talent = await this.userService.findById(proposal.talentId);
+        return {
+          ...proposal,
+          talent: talent
+            ? {
+                fullName: talent.fullName,
+                email: talent.email,
+              }
+            : null,
+        };
+      })
+    );
   }
 
   async countByMission(missionId: string): Promise<number> {
@@ -119,8 +164,8 @@ export class ProposalsService {
     proposalId: string,
     userId: string,
     userRole: string
-  ): Promise<Proposal> {
-    const proposal = await this.proposalModel.findById(proposalId).exec();
+  ): Promise<any> {
+    const proposal = await this.proposalModel.findById(proposalId).lean().exec();
     if (!proposal) {
       throw new NotFoundException(`Proposal ${proposalId} not found`);
     }
@@ -131,18 +176,30 @@ export class ProposalsService {
       proposal.recruiterId === userId &&
       proposal.status === ProposalStatus.NOT_VIEWED
     ) {
+      await this.proposalModel.findByIdAndUpdate(proposalId, {
+        status: ProposalStatus.VIEWED,
+      });
       proposal.status = ProposalStatus.VIEWED;
-      await proposal.save();
     }
 
-    return proposal;
+    // Populate talent information
+    const talent = await this.userService.findById(proposal.talentId);
+    return {
+      ...proposal,
+      talent: talent
+        ? {
+            fullName: talent.fullName,
+            email: talent.email,
+          }
+        : null,
+    };
   }
 
   async updateStatus(
     proposalId: string,
     recruiterId: string,
     updateProposalStatusDto: UpdateProposalStatusDto
-  ): Promise<Proposal> {
+  ): Promise<any> {
     const proposal = await this.proposalModel.findById(proposalId).exec();
     if (!proposal) {
       throw new NotFoundException(`Proposal ${proposalId} not found`);
@@ -178,7 +235,17 @@ export class ProposalsService {
       }
     }
 
-    return saved;
+    // Populate talent information in the response
+    const talent = await this.userService.findById(proposal.talentId);
+    return {
+      ...saved.toObject(),
+      talent: talent
+        ? {
+            fullName: talent.fullName,
+            email: talent.email,
+          }
+        : null,
+    };
   }
 }
 
