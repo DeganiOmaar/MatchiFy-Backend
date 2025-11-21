@@ -1,9 +1,16 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsNumber, IsArray, Min } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsNumber,
+  IsArray,
+  Min,
+  IsIn,
+} from 'class-validator';
 
 export class CreateMissionDto {
   @ApiProperty({
-    description: 'Title of the mission offer',
+    description: 'Titre de la mission',
     example: 'Développeur Full Stack React/Node.js',
     minLength: 3,
     maxLength: 200,
@@ -13,8 +20,9 @@ export class CreateMissionDto {
   title: string;
 
   @ApiProperty({
-    description: 'Detailed description of the mission',
-    example: 'Nous recherchons un développeur full stack expérimenté pour rejoindre notre équipe et travailler sur des projets innovants utilisant React et Node.js.',
+    description: 'Description détaillée de la mission',
+    example:
+      'Nous recherchons un développeur full stack expérimenté pour rejoindre notre équipe et travailler sur des projets innovants utilisant React et Node.js.',
     minLength: 10,
   })
   @IsString()
@@ -22,16 +30,16 @@ export class CreateMissionDto {
   description: string;
 
   @ApiProperty({
-    description: 'Duration of the mission',
-    example: '6 mois',
+    description: 'Durée de la mission (texte lisible)',
+    example: 'Less than 1 month', // ou "1 to 3 months", "3 to 6 months", etc.
   })
   @IsString()
   @IsNotEmpty({ message: 'Duration is required' })
   duration: string;
 
   @ApiProperty({
-    description: 'Budget allocated for the mission',
-    example: 50000,
+    description: 'Budget alloué pour la mission',
+    example: 5000,
     minimum: 0,
   })
   @IsNumber({}, { message: 'Budget must be a number' })
@@ -40,13 +48,24 @@ export class CreateMissionDto {
   budget: number;
 
   @ApiProperty({
-    description: 'List of required skills',
-    example: ['React', 'Node.js', 'TypeScript', 'MongoDB', 'Express'],
+    description: "Liste des compétences requises pour la mission",
+    example: ['React', 'Node.js', 'TypeScript'],
     type: [String],
   })
   @IsArray({ message: 'Skills must be an array' })
   @IsString({ each: true, message: 'Each skill must be a string' })
   @IsNotEmpty({ message: 'Skills are required' })
   skills: string[];
-}
 
+  @ApiProperty({
+    description: "Niveau d'expérience recherché",
+    example: 'INTERMEDIATE',
+    enum: ['ENTRY', 'INTERMEDIATE', 'EXPERT'],
+  })
+  @IsString()
+  @IsIn(['ENTRY', 'INTERMEDIATE', 'EXPERT'], {
+    message: 'experienceLevel must be ENTRY, INTERMEDIATE or EXPERT',
+  })
+  @IsNotEmpty({ message: 'Experience level is required' })
+  experienceLevel: 'ENTRY' | 'INTERMEDIATE' | 'EXPERT';
+}
