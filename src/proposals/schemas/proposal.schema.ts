@@ -46,6 +46,9 @@ export class Proposal extends Document {
 
   @Prop({ type: Boolean, default: false, index: true })
   archived: boolean;
+
+  @Prop({ type: Boolean, default: false, index: true })
+  deletedByTalent: boolean;
 }
 
 export type ProposalDocument = Proposal & Document;

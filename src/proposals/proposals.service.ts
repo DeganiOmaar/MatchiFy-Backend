@@ -124,12 +124,15 @@ export class ProposalsService {
 
   async findByTalent(
     talentId: string,
-    filters?: { missionId?: string; archived?: boolean }
+    filters?: { status?: string; archived?: boolean }
   ): Promise<any[]> {
-    const query: any = { talentId };
+    const query: any = { 
+      talentId,
+      deletedByTalent: { $ne: true }
+    };
     
-    if (filters?.missionId) {
-      query.missionId = filters.missionId;
+    if (filters?.status) {
+      query.status = filters.status;
     }
     
     if (filters?.archived !== undefined) {
@@ -157,6 +160,35 @@ export class ProposalsService {
         };
       })
     );
+  }
+
+  /**
+   * Find proposals by talent for stats calculation
+   * Returns proposals within a date range, excluding archived and deleted ones
+   */
+  async findByTalentForStats(
+    talentId: string,
+    fromDate: Date,
+    toDate: Date
+  ): Promise<any[]> {
+    const query: any = {
+      talentId,
+      deletedByTalent: { $ne: true },
+      createdAt: {
+        $gte: fromDate,
+        $lte: toDate,
+      },
+    };
+
+    // Exclude proposals archived by recruiter (we want all proposals for stats)
+    // But we still exclude those deleted by talent
+    
+    const proposals = await this.proposalModel
+      .find(query)
+      .lean()
+      .exec();
+
+    return proposals;
   }
 
   async findByRecruiter(
@@ -386,18 +418,38 @@ export class ProposalsService {
       );
     }
 
-    // Check if proposal can be archived
-    const mission = await this.missionsService.findOne(proposal.missionId);
-    const canArchive =
-      mission.status === 'completed' || proposal.status === ProposalStatus.REFUSED;
+    proposal.archived = true;
+    const saved = await proposal.save();
 
-    if (!canArchive) {
-      throw new BadRequestException(
-        'Proposal can only be archived if mission is completed or proposal was refused'
+    const talent = await this.userService.findById(proposal.talentId);
+    return {
+      ...saved.toObject(),
+      talent: talent
+        ? {
+            fullName: talent.fullName,
+            email: talent.email,
+          }
+        : null,
+    };
+  }
+
+  async deleteProposal(
+    proposalId: string,
+    talentId: string
+  ): Promise<any> {
+    const proposal = await this.proposalModel.findById(proposalId).exec();
+    if (!proposal) {
+      throw new NotFoundException(`Proposal ${proposalId} not found`);
+    }
+
+    if (proposal.talentId !== talentId) {
+      throw new ForbiddenException(
+        'You do not have permission to delete this proposal'
       );
     }
 
-    proposal.archived = true;
+    // Soft delete: mark as deleted by talent, but keep it visible for recruiter
+    proposal.deletedByTalent = true;
     const saved = await proposal.save();
 
     const talent = await this.userService.findById(proposal.talentId);

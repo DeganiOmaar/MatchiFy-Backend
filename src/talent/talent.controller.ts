@@ -5,9 +5,11 @@ import {
   Post,
   Body,
   Request,
+  Query,
   UseGuards,
   UploadedFile,
   UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -266,5 +268,60 @@ export class TalentController {
   async uploadBanner(@Request() req: any, @UploadedFile() file: Express.Multer.File) {
     const bannerUrl = `/uploads/banner/${file.filename}`;
     return this.talentService.updateBannerImage(req.user.id, bannerUrl);
+  }
+
+  @Get('stats')
+  @Roles('talent')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get talent proposal statistics',
+    description: 'Retrieves aggregated proposal statistics (sent, accepted, refused) for the authenticated talent within a specified time period.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Statistics retrieved successfully',
+    schema: {
+      example: {
+        totalProposalsSent: 15,
+        totalProposalsAccepted: 8,
+        totalProposalsRefused: 3,
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing JWT token',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - User is not a talent',
+  })
+  async getStats(
+    @Request() req: any,
+    @Query('days') days?: string,
+  ) {
+    const userId = req.user.id;
+    
+    // Default to 7 days if not specified
+    const daysNumber = days ? parseInt(days, 10) : 7;
+    
+    // Validate days parameter
+    if (isNaN(daysNumber) || daysNumber < 1) {
+      throw new BadRequestException('Invalid days parameter. Must be a positive number.');
+    }
+    
+    // Map common period values
+    let actualDays = daysNumber;
+    if (daysNumber === 30) {
+      actualDays = 30;
+    } else if (daysNumber === 90) {
+      actualDays = 90;
+    } else if (daysNumber === 365 || daysNumber === 12) {
+      actualDays = 365;
+    } else {
+      actualDays = daysNumber;
+    }
+    
+    return this.talentService.getStats(userId, actualDays);
   }
 }
