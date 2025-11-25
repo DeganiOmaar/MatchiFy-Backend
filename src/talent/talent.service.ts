@@ -184,6 +184,30 @@ export class TalentService {
     return { message: 'Banner updated', bannerImage: bannerUrl };
   }
 
+  // 📄 Mettre à jour le CV
+  async updateCvUrl(userId: string, cvUrl: string) {
+    const user = await this.userService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('Talent not found');
+    }
+
+    // Verify user is a talent
+    if (user.role !== 'talent') {
+      throw new ForbiddenException('Only talents can upload CV');
+    }
+
+    user.cvUrl = cvUrl;
+    await this.userService.save(user);
+
+    // Return updated user without password
+    const { password, ...userWithoutPassword } = user.toObject();
+    return {
+      message: 'CV uploaded successfully',
+      cvUrl: cvUrl,
+      user: userWithoutPassword,
+    };
+  }
+
   /**
    * Get talent stats for proposals
    * Returns aggregated proposal statistics for a given date range

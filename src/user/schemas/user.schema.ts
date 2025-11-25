@@ -60,6 +60,10 @@ export class User extends Document {
   @Prop()
   portfolioLink?: string;
 
+  // CV URL (for talent profiles)
+  @Prop()
+  cvUrl?: string;
+
   // Password reset fields
   @Prop()
   resetCode?: string;
