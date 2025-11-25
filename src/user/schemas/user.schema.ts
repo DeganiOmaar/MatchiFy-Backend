@@ -56,10 +56,6 @@ export class User extends Document {
   })
   skills?: string[]; // Array of Skill ObjectIds
 
-  // Portfolio link
-  @Prop()
-  portfolioLink?: string;
-
   // CV URL (for talent profiles)
   @Prop()
   cvUrl?: string;

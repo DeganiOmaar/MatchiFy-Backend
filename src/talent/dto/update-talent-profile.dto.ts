@@ -99,15 +99,6 @@ export class UpdateTalentProfileDto {
   description?: string;
 
   @ApiPropertyOptional({
-    description: 'Portfolio website URL',
-    example: 'https://johndoe-portfolio.com',
-  })
-  @IsOptional()
-  @ValidateIf((o) => o.portfolioLink !== undefined && o.portfolioLink !== null && o.portfolioLink !== '')
-  @IsUrl({}, { message: 'Please provide a valid URL for portfolio link' })
-  portfolioLink?: string;
-
-  @ApiPropertyOptional({
     type: 'string',
     format: 'binary',
     description: 'Profile image file (PNG, JPG, JPEG only)',

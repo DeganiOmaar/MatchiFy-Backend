@@ -57,7 +57,6 @@ export class TalentController {
           talent: 'Singer',
           skills: ['Vocal Performance', 'Songwriting', 'Guitar'],
           description: 'Professional singer with 10 years of experience',
-          portfolioLink: 'https://johndoe-portfolio.com',
           profileImage: 'uploads/profile/profile-1731504922456-123456789.jpg',
           createdAt: '2025-11-13T12:35:22.456Z',
           updatedAt: '2025-11-13T15:20:10.123Z',
@@ -89,7 +88,7 @@ export class TalentController {
   @ApiOperation({
     summary: 'Update talent profile',
     description:
-      'Allows authenticated talents to update their profile information including full name, email, phone, location, talent category, skills, description, portfolio link, and profile image. Only provided fields will be updated (partial update). Profile image must be PNG, JPG, or JPEG format. Skills array cannot exceed 10 items.',
+      'Allows authenticated talents to update their profile information including full name, email, phone, location, talent category, skills, description, and profile image. Only provided fields will be updated (partial update). Profile image must be PNG, JPG, or JPEG format. Skills array cannot exceed 10 items.',
   })
   @ApiBody({
     schema: {
@@ -133,11 +132,6 @@ export class TalentController {
           example: 'Professional singer with 10 years of experience in live performances',
           description: 'Profile description or bio',
         },
-        portfolioLink: {
-          type: 'string',
-          example: 'https://johndoe-portfolio.com',
-          description: 'Portfolio website URL',
-        },
         profileImage: {
           type: 'string',
           format: 'binary',
@@ -162,7 +156,6 @@ export class TalentController {
           talent: 'Singer',
           skills: ['Vocal Performance', 'Songwriting', 'Guitar'],
           description: 'Professional singer with 10 years of experience',
-          portfolioLink: 'https://johndoe-portfolio.com',
           profileImage: 'uploads/profile/profile-1731504922456-123456789.jpg',
           createdAt: '2025-11-13T12:35:22.456Z',
           updatedAt: '2025-11-13T15:20:10.123Z',
@@ -172,7 +165,7 @@ export class TalentController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Bad Request - Email already in use, invalid file type, skills array too large, or invalid portfolio URL',
+    description: 'Bad Request - Email already in use, invalid file type, or skills array too large',
     schema: {
       example: {
         statusCode: 400,

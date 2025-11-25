@@ -126,18 +126,6 @@ export class TalentService {
       updateData.skills = skillIds;
     }
 
-    if (updateDto.portfolioLink !== undefined) {
-      // Validate URL if provided and not empty
-      if (updateDto.portfolioLink && updateDto.portfolioLink.trim() !== '') {
-        try {
-          new URL(updateDto.portfolioLink);
-        } catch {
-          throw new BadRequestException('Please provide a valid URL for portfolio link');
-        }
-      }
-      updateData.portfolioLink = updateDto.portfolioLink;
-    }
-
     // If profile image was uploaded, add the path
     if (profileImagePath) {
       updateData.profileImage = profileImagePath;
