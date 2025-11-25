@@ -219,6 +219,21 @@ async resetPasswordNew(dto: ResetPasswordNewDto) {
 }
 
 
+  async logout(userId: string) {
+    // Since JWT tokens are stateless, we don't need to invalidate them server-side
+    // However, this endpoint can be used to:
+    // 1. Clear any server-side session state if needed
+    // 2. Clear push notification tokens if stored
+    // 3. Provide a consistent logout API for clients
+    
+    // For now, we'll just return success
+    // In the future, you could add token blacklisting or session management here
+    return {
+      message: 'Logout successful',
+      success: true
+    };
+  }
+
   private clean(user: any) {
     const { password, ...rest } = user.toObject();
     return rest;

@@ -45,10 +45,17 @@ export class Conversation extends Document {
 
 export const ConversationSchema = SchemaFactory.createForClass(Conversation);
 
-// Compound index to ensure one conversation per recruiter-talent-mission pair
-// Use sparse index to handle null missionId
+// Unique index to ensure one conversation per recruiter-talent pair
+// This is the primary constraint based on the database index
+ConversationSchema.index(
+  { recruiterId: 1, talentId: 1 },
+  { unique: true }
+);
+
+// Additional sparse index for missionId queries (non-unique)
+// This allows filtering by missionId without affecting uniqueness
 ConversationSchema.index(
   { recruiterId: 1, talentId: 1, missionId: 1 },
-  { unique: true, sparse: true }
+  { sparse: true }
 );
 

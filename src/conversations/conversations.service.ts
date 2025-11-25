@@ -53,15 +53,20 @@ export class ConversationsService {
     }
 
     // Try to find existing conversation
+    // Search without missionId first since the unique index is on (recruiterId, talentId)
     const existing = await this.conversationModel
       .findOne({
         recruiterId,
         talentId,
-        missionId: createConversationDto.missionId || null,
       })
       .exec();
 
     if (existing) {
+      // Update missionId if provided and different
+      if (createConversationDto.missionId && existing.missionId !== createConversationDto.missionId) {
+        existing.missionId = createConversationDto.missionId;
+        await existing.save();
+      }
       // Update user info if missing
       await this.updateConversationUserInfo(existing);
       return existing;
@@ -72,17 +77,44 @@ export class ConversationsService {
     const recruiter = await this.userService.findById(recruiterId);
 
     // Create new conversation with user info
-    const conversation = new this.conversationModel({
-      recruiterId,
-      talentId,
-      missionId: createConversationDto.missionId,
-      talentName: talent?.fullName,
-      talentProfileImage: talent?.profileImage,
-      recruiterName: recruiter?.fullName,
-      recruiterProfileImage: recruiter?.profileImage,
-    });
+    // Use findOneAndUpdate with upsert to handle race conditions
+    try {
+      const conversation = new this.conversationModel({
+        recruiterId,
+        talentId,
+        missionId: createConversationDto.missionId,
+        talentName: talent?.fullName,
+        talentProfileImage: talent?.profileImage,
+        recruiterName: recruiter?.fullName,
+        recruiterProfileImage: recruiter?.profileImage,
+      });
 
-    return conversation.save();
+      return await conversation.save();
+    } catch (error: any) {
+      // Handle duplicate key error (race condition)
+      if (error.code === 11000) {
+        // Conversation was created by another request, fetch it
+        const existingConversation = await this.conversationModel
+          .findOne({
+            recruiterId,
+            talentId,
+          })
+          .exec();
+        
+        if (existingConversation) {
+          // Update missionId if provided and different
+          if (createConversationDto.missionId && existingConversation.missionId !== createConversationDto.missionId) {
+            existingConversation.missionId = createConversationDto.missionId;
+            await existingConversation.save();
+          }
+          // Update user info if missing
+          await this.updateConversationUserInfo(existingConversation);
+          return existingConversation;
+        }
+      }
+      // Re-throw if it's not a duplicate key error
+      throw error;
+    }
   }
 
   /**
