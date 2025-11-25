@@ -14,7 +14,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 export class AuthController {
 
 
-     constructor(private authService: AuthService) {}
+     constructor(private readonly authService: AuthService) {}
 
   @Post('signup/talent')
   @ApiOperation({ 
