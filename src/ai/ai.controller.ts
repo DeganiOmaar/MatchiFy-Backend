@@ -20,6 +20,9 @@ import { Roles } from '../auth/roles.decorator';
 import { AiProfileAnalyzerService } from './services/ai-profile-analyzer.service';
 import { ProfileAnalysisResponseDto } from './dto/profile-analysis-response.dto';
 import { ProfileAnalysisService } from './services/profile-analysis.service';
+import { MissionFitAnalyzerService } from './services/mission-fit-analyzer.service';
+import { MissionFitResponseDto } from './dto/mission-fit-response.dto';
+import { Param } from '@nestjs/common';
 
 // Simple in-memory rate limiting
 // In production, use Redis or a proper rate limiting library
@@ -41,6 +44,7 @@ export class AiController {
   constructor(
     private readonly aiProfileAnalyzerService: AiProfileAnalyzerService,
     private readonly profileAnalysisService: ProfileAnalysisService,
+    private readonly missionFitAnalyzerService: MissionFitAnalyzerService,
   ) {
     // Clean up old rate limit entries every hour
     setInterval(() => this.cleanupRateLimit(), 60 * 60 * 1000);
@@ -176,6 +180,83 @@ export class AiController {
       profileScore: analysis.profileScore,
       analyzedAt: analysis.createdAt,
     };
+  }
+
+  @Post('mission-fit/:missionId')
+  @Roles('talent')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Analyze mission fit for talent',
+    description:
+      'Analyzes how well the authenticated talent profile matches a specific mission. Returns a match score, radar chart data with 5 axes, and a short summary. Uses cached results if talent and mission have not changed since last analysis.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Mission fit analysis completed successfully',
+    type: MissionFitResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing JWT token',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - User is not a talent',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Not Found - Mission not found or talent has no profile analysis',
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'Service Unavailable - AI service is temporarily unavailable',
+  })
+  async analyzeMissionFit(
+    @Request() req: any,
+    @Param('missionId') missionId: string,
+  ): Promise<MissionFitResponseDto> {
+    const talentId = req.user.id;
+    const startTime = Date.now();
+
+    try {
+      this.logger.log(
+        `Mission fit analysis requested by talent ${talentId} for mission ${missionId}`,
+      );
+      const analysis = await this.missionFitAnalyzerService.analyzeMissionFit(
+        talentId,
+        missionId,
+      );
+
+      const duration = Date.now() - startTime;
+      this.logger.log(
+        `Mission fit analysis completed successfully for talent ${talentId} and mission ${missionId} in ${duration}ms`,
+      );
+
+      return analysis;
+    } catch (error: any) {
+      const duration = Date.now() - startTime;
+      const errorStatus = error instanceof HttpException ? error.getStatus() : 'UNKNOWN';
+
+      this.logger.error(
+        `Mission fit analysis failed for talent ${talentId} and mission ${missionId} after ${duration}ms - Status: ${errorStatus} - Error: ${error.message}`,
+        error.stack,
+      );
+
+      // Re-throw HTTP exceptions as-is (they already have user-friendly messages)
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      // Map other errors to user-friendly messages
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to analyze mission fit. Please try again later.',
+          error: 'Internal Server Error',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   /**
