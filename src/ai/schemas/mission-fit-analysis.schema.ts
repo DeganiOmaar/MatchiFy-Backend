@@ -22,8 +22,11 @@ export class MissionFitAnalysis extends Document {
       skillsMatch: { type: Number, min: 0, max: 100 },
       experienceFit: { type: Number, min: 0, max: 100 },
       projectRelevance: { type: Number, min: 0, max: 100 },
-      talentStrengthAlignment: { type: Number, min: 0, max: 100 },
-      overallCoherence: { type: Number, min: 0, max: 100 },
+      missionRequirementsFit: { type: Number, min: 0, max: 100 },
+      softSkillsFit: { type: Number, min: 0, max: 100 },
+      // Legacy fields for backward compatibility
+      talentStrengthAlignment: { type: Number, min: 0, max: 100, required: false },
+      overallCoherence: { type: Number, min: 0, max: 100, required: false },
     },
     required: true,
   })
@@ -31,8 +34,11 @@ export class MissionFitAnalysis extends Document {
     skillsMatch: number;
     experienceFit: number;
     projectRelevance: number;
-    talentStrengthAlignment: number;
-    overallCoherence: number;
+    missionRequirementsFit: number;
+    softSkillsFit: number;
+    // Legacy fields for backward compatibility
+    talentStrengthAlignment?: number;
+    overallCoherence?: number;
   };
 
   @Prop({ required: true, type: String })

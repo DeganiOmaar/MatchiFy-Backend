@@ -145,7 +145,27 @@ export class BestMatchService {
   }
 
   /**
+   * Normalize score to 0-100 range
+   */
+  private normalizeScore(score: any): number {
+    if (typeof score === 'number') {
+      return Math.max(0, Math.min(100, Math.round(score)));
+    }
+
+    if (typeof score === 'string') {
+      const parsed = parseFloat(score);
+      if (!isNaN(parsed)) {
+        return Math.max(0, Math.min(100, Math.round(parsed)));
+      }
+    }
+
+    // Default score if invalid
+    return 50;
+  }
+
+  /**
    * Score a single mission using Ollama
+   * Uses strict bottleneck scoring formula
    */
   private async scoreSingleMission(
     mission: MissionDocument,
@@ -160,20 +180,41 @@ export class BestMatchService {
 
       const response = await this.aiService.generateJsonContent(prompt, 1);
 
-      // Validate response
-      if (
-        !response ||
-        typeof response.matchScore !== 'number' ||
-        typeof response.reasoning !== 'string'
-      ) {
+      // Validate response structure
+      if (!response || typeof response.reasoning !== 'string') {
         this.logger.warn(
-          `Invalid response from AI for mission ${mission._id}`,
+          `Invalid response from AI for mission ${mission._id}: missing reasoning`,
         );
         return null;
       }
 
-      // Ensure matchScore is in valid range
-      const matchScore = Math.max(0, Math.min(100, Math.round(response.matchScore)));
+      // Extract category scores - support both new format and legacy format
+      const categoryScoresObj = response.categoryScores || response.radar || {};
+      
+      const skillsMatch = this.normalizeScore(categoryScoresObj.skillsMatch ?? 0);
+      const experienceFit = this.normalizeScore(categoryScoresObj.experienceFit ?? 0);
+      const projectRelevance = this.normalizeScore(categoryScoresObj.projectRelevance ?? 0);
+      const missionRequirementsFit = this.normalizeScore(
+        categoryScoresObj.missionRequirementsFit ?? 
+        categoryScoresObj.overallCoherence ?? 
+        0
+      );
+      const softSkillsFit = this.normalizeScore(
+        categoryScoresObj.softSkillsFit ?? 
+        categoryScoresObj.talentStrengthAlignment ?? 
+        0
+      );
+
+      // Calculate final score using strict bottleneck formula
+      const categoryScores = [
+        skillsMatch,
+        experienceFit,
+        projectRelevance,
+        missionRequirementsFit,
+        softSkillsFit,
+      ];
+      
+      const matchScore = this.calculateBottleneckScore(categoryScores);
 
       return {
         missionId: String(mission._id),
@@ -196,7 +237,38 @@ export class BestMatchService {
   }
 
   /**
+   * Calculate final score using strict bottleneck formula
+   * Weak categories heavily reduce the final score
+   */
+  private calculateBottleneckScore(categoryScores: number[]): number {
+    if (categoryScores.length === 0) {
+      return 0;
+    }
+
+    // Find the minimum (bottleneck) score
+    const minScore = Math.min(...categoryScores);
+    
+    // Calculate average of all categories
+    const avgScore = categoryScores.reduce((sum, score) => sum + score, 0) / categoryScores.length;
+
+    // Strict bottleneck formula: minimum score has heavy weight
+    // If minimum score is very low (< 50), it dominates even more
+    let bottleneckWeight = 0.7; // Default: minimum score has 70% weight
+    if (minScore < 50) {
+      bottleneckWeight = 0.85; // Very weak category dominates (85% weight)
+    } else if (minScore < 70) {
+      bottleneckWeight = 0.75; // Weak category has 75% weight
+    }
+
+    // Final score: heavily penalized by weakest category
+    const finalScore = (minScore * bottleneckWeight) + (avgScore * (1 - bottleneckWeight));
+
+    return Math.max(0, Math.min(100, Math.round(finalScore)));
+  }
+
+  /**
    * Build ranking prompt for Ollama
+   * Uses the same strict scoring model as detailed mission fit analysis
    */
   private buildRankingPrompt(
     mission: MissionDocument,
@@ -213,7 +285,7 @@ export class BestMatchService {
     );
     parts.push('');
     parts.push(
-      'Analyze how well this talent profile matches the following mission and return a JSON response with a match score (0-100) and a short reasoning.',
+      'Analyze how well this talent profile matches the following mission. Return category scores in JSON format (ONLY JSON, no other text).',
     );
     parts.push('');
     parts.push('=== TALENT PROFILE ===');
@@ -232,25 +304,41 @@ export class BestMatchService {
       'Provide your analysis in the following JSON format (ONLY JSON, no other text):',
     );
     parts.push('{');
-    parts.push('  "matchScore": 75,');
+    parts.push('  "categoryScores": {');
+    parts.push('    "skillsMatch": 85,');
+    parts.push('    "experienceFit": 75,');
+    parts.push('    "projectRelevance": 80,');
+    parts.push('    "missionRequirementsFit": 82,');
+    parts.push('    "softSkillsFit": 78');
+    parts.push('  },');
     parts.push('  "reasoning": "Short explanation of the match (1-2 lines)"');
     parts.push('}');
     parts.push('');
-    parts.push('Guidelines:');
+    parts.push('CRITICAL: Do NOT include a "matchScore" field. Only provide category scores.');
+    parts.push('The final score will be calculated automatically using a strict bottleneck formula.');
+    parts.push('');
+    parts.push('Guidelines for category scores (0-100 each):');
     parts.push(
-      '- matchScore: A number between 0-100 indicating how well the talent matches the mission',
+      '- categoryScores.skillsMatch: How well talent skills match mission requirements (0-100). Be strict: missing critical skills significantly lowers this score.',
     );
     parts.push(
-      '  * Consider: skills alignment, experience relevance, profile completeness',
+      '- categoryScores.experienceFit: How well talent experience aligns with mission needs (0-100). Consider years of experience, similar projects, and industry relevance.',
     );
     parts.push(
-      '  * Higher scores for strong skill matches and relevant experience',
+      '- categoryScores.projectRelevance: Relevance of talent portfolio projects to mission context (0-100). Evaluate if past projects demonstrate capabilities needed for this mission.',
     );
     parts.push(
-      '  * Lower scores for weak or no skill matches, or irrelevant experience',
+      '- categoryScores.missionRequirementsFit: How well talent meets ALL specific mission requirements (0-100). Be strict: missing any key requirement significantly lowers this score.',
+    );
+    parts.push(
+      '- categoryScores.softSkillsFit: How well talent soft skills (communication, teamwork, adaptability, etc.) align with mission needs (0-100).',
     );
     parts.push(
       '- reasoning: A concise 1-2 line explanation of why this is a good or poor match',
+    );
+    parts.push('');
+    parts.push(
+      'IMPORTANT: Score each category independently and strictly. A talent must excel in ALL categories to receive high scores. Be critical and realistic in your assessment.',
     );
     parts.push(
       'Be specific and professional. Focus on concrete matches between talent strengths and mission requirements.',

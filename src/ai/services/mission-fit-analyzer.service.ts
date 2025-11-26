@@ -209,74 +209,129 @@ export class MissionFitAnalyzerService {
       'Provide your analysis in the following JSON format (ONLY JSON, no other text):',
     );
     parts.push('{');
-    parts.push('  "score": 82,');
     parts.push('  "radar": {');
     parts.push('    "skillsMatch": 85,');
     parts.push('    "experienceFit": 75,');
     parts.push('    "projectRelevance": 80,');
-    parts.push('    "talentStrengthAlignment": 90,');
-    parts.push('    "overallCoherence": 82');
+    parts.push('    "missionRequirementsFit": 82,');
+    parts.push('    "softSkillsFit": 78');
     parts.push('  },');
     parts.push('  "shortSummary": "2-3 lines summary here"');
     parts.push('}');
     parts.push('');
-    parts.push('Guidelines:');
+    parts.push('CRITICAL: Do NOT include a "score" field. Only provide the radar category scores.');
+    parts.push('The final score will be calculated automatically using a strict bottleneck formula.');
+    parts.push('');
+    parts.push('Guidelines for category scores (0-100 each):');
     parts.push(
-      '- score: Overall match score (0-100) considering all factors',
+      '- radar.skillsMatch: How well talent skills match mission requirements (0-100). Be strict: missing critical skills significantly lowers this score.',
     );
     parts.push(
-      '- radar.skillsMatch: How well talent skills match mission requirements (0-100)',
+      '- radar.experienceFit: How well talent experience aligns with mission needs (0-100). Consider years of experience, similar projects, and industry relevance.',
     );
     parts.push(
-      '- radar.experienceFit: How well talent experience aligns with mission needs (0-100)',
+      '- radar.projectRelevance: Relevance of talent portfolio projects to mission context (0-100). Evaluate if past projects demonstrate capabilities needed for this mission.',
     );
     parts.push(
-      '- radar.projectRelevance: Relevance of talent portfolio to mission (0-100)',
+      '- radar.missionRequirementsFit: How well talent meets ALL specific mission requirements (0-100). Be strict: missing any key requirement significantly lowers this score.',
     );
     parts.push(
-      '- radar.talentStrengthAlignment: How mission leverages talent key strengths (0-100)',
+      '- radar.softSkillsFit: How well talent soft skills (communication, teamwork, adaptability, etc.) align with mission needs (0-100).',
     );
     parts.push(
-      '- radar.overallCoherence: Overall coherence and fit between talent and mission (0-100)',
-    );
-    parts.push(
-      '- shortSummary: 2-3 lines only, highlighting key match points and any gaps',
+      '- shortSummary: 2-3 lines only, highlighting key match points and any critical gaps',
     );
     parts.push('');
     parts.push(
-      'Be specific, constructive, and professional. Base scores on actual data provided.',
+      'IMPORTANT: Score each category independently and strictly. A talent must excel in ALL categories to receive high scores. Be critical and realistic in your assessment.',
     );
 
     return parts.join('\n');
   }
 
   /**
+   * Calculate final score using strict bottleneck formula
+   * Weak categories heavily reduce the final score
+   */
+  private calculateBottleneckScore(categoryScores: number[]): number {
+    if (categoryScores.length === 0) {
+      return 0;
+    }
+
+    // Find the minimum (bottleneck) score
+    const minScore = Math.min(...categoryScores);
+    
+    // Calculate average of all categories
+    const avgScore = categoryScores.reduce((sum, score) => sum + score, 0) / categoryScores.length;
+
+    // Strict bottleneck formula: minimum score has heavy weight
+    // If minimum score is very low (< 50), it dominates even more
+    let bottleneckWeight = 0.7; // Default: minimum score has 70% weight
+    if (minScore < 50) {
+      bottleneckWeight = 0.85; // Very weak category dominates (85% weight)
+    } else if (minScore < 70) {
+      bottleneckWeight = 0.75; // Weak category has 75% weight
+    }
+
+    // Final score: heavily penalized by weakest category
+    const finalScore = (minScore * bottleneckWeight) + (avgScore * (1 - bottleneckWeight));
+
+    return Math.max(0, Math.min(100, Math.round(finalScore)));
+  }
+
+  /**
    * Normalize and validate mission fit response
+   * Calculates final score using strict bottleneck formula
    */
   private normalizeMissionFitResponse(analysis: any): MissionFitResponseDto {
-    // Ensure score is valid
-    const score = this.normalizeScore(analysis.score);
+    // Normalize all category scores - support both old and new field names
+    const skillsMatch = this.normalizeScore(
+      analysis.radar?.skillsMatch ?? analysis.skillsMatch ?? 0,
+    );
+    const experienceFit = this.normalizeScore(
+      analysis.radar?.experienceFit ?? analysis.experienceFit ?? 0,
+    );
+    const projectRelevance = this.normalizeScore(
+      analysis.radar?.projectRelevance ?? analysis.projectRelevance ?? 0,
+    );
+    
+    // Support migration from old field names to new ones
+    const missionRequirementsFit = this.normalizeScore(
+      analysis.radar?.missionRequirementsFit ?? 
+      analysis.radar?.overallCoherence ?? 
+      analysis.missionRequirementsFit ?? 
+      analysis.overallCoherence ?? 
+      0,
+    );
+    const softSkillsFit = this.normalizeScore(
+      analysis.radar?.softSkillsFit ?? 
+      analysis.radar?.talentStrengthAlignment ??
+      analysis.softSkillsFit ??
+      analysis.talentStrengthAlignment ??
+      0,
+    );
 
-    // Ensure radar object exists with all 5 axes
+    // Build radar object with all 5 categories
     const radar = {
-      skillsMatch: this.normalizeScore(
-        analysis.radar?.skillsMatch ?? analysis.skillsMatch ?? 0,
-      ),
-      experienceFit: this.normalizeScore(
-        analysis.radar?.experienceFit ?? analysis.experienceFit ?? 0,
-      ),
-      projectRelevance: this.normalizeScore(
-        analysis.radar?.projectRelevance ?? analysis.projectRelevance ?? 0,
-      ),
-      talentStrengthAlignment: this.normalizeScore(
-        analysis.radar?.talentStrengthAlignment ??
-          analysis.talentStrengthAlignment ??
-          0,
-      ),
-      overallCoherence: this.normalizeScore(
-        analysis.radar?.overallCoherence ?? analysis.overallCoherence ?? 0,
-      ),
+      skillsMatch,
+      experienceFit,
+      projectRelevance,
+      missionRequirementsFit,
+      softSkillsFit,
+      // Keep old fields for backward compatibility during migration
+      talentStrengthAlignment: softSkillsFit,
+      overallCoherence: missionRequirementsFit,
     };
+
+    // Calculate final score using strict bottleneck formula
+    const categoryScores = [
+      skillsMatch,
+      experienceFit,
+      projectRelevance,
+      missionRequirementsFit,
+      softSkillsFit,
+    ];
+    const score = this.calculateBottleneckScore(categoryScores);
 
     // Ensure shortSummary exists
     const shortSummary =
