@@ -16,6 +16,7 @@ import { AlertsModule } from '../alerts/alerts.module';
     UserModule,
     forwardRef(() => ConversationsModule),
     AlertsModule,
+    forwardRef(() => require('../ai/ai.module').AiModule),
     MongooseModule.forFeature([{ name: Proposal.name, schema: ProposalSchema }]),
   ],
   controllers: [ProposalsController],

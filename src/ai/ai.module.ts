@@ -18,12 +18,15 @@ import { forwardRef } from '@nestjs/common';
 import { MissionsModule } from '../missions/missions.module';
 import { MissionFitAnalyzerService } from './services/mission-fit-analyzer.service';
 import { ProposalGeneratorService } from './services/proposal-generator.service';
+import { AiProposalMatchService } from './services/ai-proposal-match.service';
+import { Proposal, ProposalSchema } from '../proposals/schemas/proposal.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: ProfileAnalysis.name, schema: ProfileAnalysisSchema },
       { name: MissionFitAnalysis.name, schema: MissionFitAnalysisSchema },
+      { name: Proposal.name, schema: ProposalSchema },
     ]),
     UserModule,
     PortfolioModule,
@@ -39,8 +42,9 @@ import { ProposalGeneratorService } from './services/proposal-generator.service'
     ProfileAnalysisService,
     MissionFitAnalyzerService,
     ProposalGeneratorService,
+    AiProposalMatchService,
   ],
-  exports: [AiService, AiProfileAnalyzerService, ProfileAnalysisService],
+  exports: [AiService, AiProfileAnalyzerService, ProfileAnalysisService, AiProposalMatchService],
 })
 export class AiModule {}
 

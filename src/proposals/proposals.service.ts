@@ -11,6 +11,7 @@ import { UserService } from '../user/user.service';
 import { ConversationsService } from '../conversations/conversations.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { AlertType } from '../alerts/schemas/alert.schema';
+import { AiProposalMatchService } from '../ai/services/ai-proposal-match.service';
 import {
   Proposal,
   ProposalDocument,
@@ -32,7 +33,8 @@ export class ProposalsService {
     private readonly missionsService: MissionsService,
     private readonly userService: UserService,
     private readonly conversationsService: ConversationsService,
-    private readonly alertsService: AlertsService
+    private readonly alertsService: AlertsService,
+    private readonly aiProposalMatchService: AiProposalMatchService,
   ) {}
 
   async create(
@@ -285,6 +287,30 @@ export class ProposalsService {
     }).exec();
   }
 
+  async getUnviewedCountsByMissionIds(missionIds: string[]): Promise<{ [key: string]: number }> {
+    const counts = await this.proposalModel.aggregate([
+      {
+        $match: {
+          missionId: { $in: missionIds },
+          status: ProposalStatus.NOT_VIEWED,
+        },
+      },
+      {
+        $group: {
+          _id: '$missionId',
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const result: { [key: string]: number } = {};
+    counts.forEach((item) => {
+      result[item._id] = item.count;
+    });
+    
+    return result;
+  }
+
   async findOne(
     proposalId: string,
     userId: string,
@@ -471,6 +497,134 @@ export class ProposalsService {
           }
         : null,
     };
+  }
+
+  /**
+   * Find proposals for a specific mission with optional AI sorting
+   * @param recruiterId - ID of the recruiter (must own the mission)
+   * @param missionId - ID of the mission
+   * @param useAiSort - Whether to sort by AI compatibility score
+   * @returns Proposals sorted by AI score (if enabled) or creation date
+   */
+  async findByMissionWithAiSort(
+    recruiterId: string,
+    missionId: string,
+    useAiSort: boolean = false,
+  ): Promise<any> {
+    // Verify mission ownership
+    const mission = await this.missionsService.findOne(missionId);
+    if (!mission) {
+      throw new NotFoundException(`Mission ${missionId} not found`);
+    }
+
+    if (mission.recruiterId.toString() !== recruiterId) {
+      throw new ForbiddenException(
+        'You do not have permission to view proposals for this mission'
+      );
+    }
+
+    // Get all proposals for this mission
+    const proposals = await this.proposalModel
+      .find({ missionId, recruiterId })
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec();
+
+    // Populate talent information
+    const proposalsWithTalent = await Promise.all(
+      proposals.map(async (proposal) => {
+        const talent = await this.userService.findById(proposal.talentId);
+        return {
+          ...proposal,
+          talent: talent
+            ? {
+                fullName: talent.fullName,
+                email: talent.email,
+                skills: talent.skills,
+                mainTalent: talent.talent,
+              }
+            : null,
+        };
+      })
+    );
+
+    // If AI sort is requested, score and sort proposals
+    if (useAiSort) {
+      const scoredProposals = await this.aiProposalMatchService.scoreProposalsForMission(
+        missionId,
+        proposalsWithTalent,
+      );
+
+      return {
+        mission: mission,
+        proposals: scoredProposals,
+      };
+    }
+
+    // Return proposals in chronological order
+    return {
+      mission: mission,
+      proposals: proposalsWithTalent.map(p => ({ ...p, aiScore: null })),
+    };
+  }
+
+  /**
+   * Search proposals by mission title
+   * @param recruiterId - ID of the recruiter
+   * @param titleQuery - Search query for mission title
+   * @returns Missions matching the title with their proposals
+   */
+  async findByMissionTitle(
+    recruiterId: string,
+    titleQuery: string,
+  ): Promise<any[]> {
+    if (!titleQuery || titleQuery.trim().length === 0) {
+      return [];
+    }
+
+    // Find all missions by this recruiter matching the title
+    const missions = await this.missionsService.findAllByRecruiter(recruiterId);
+    
+    // Filter missions by title (case-insensitive partial match)
+    const matchingMissions = missions.filter((mission: any) =>
+      mission.title?.toLowerCase().includes(titleQuery.toLowerCase())
+    );
+
+    // For each matching mission, get its proposals
+    const results = await Promise.all(
+      matchingMissions.map(async (mission: any) => {
+        const proposals = await this.proposalModel
+          .find({ missionId: mission._id.toString(), recruiterId })
+          .sort({ createdAt: -1 })
+          .lean()
+          .exec();
+
+        // Populate talent information
+        const proposalsWithTalent = await Promise.all(
+          proposals.map(async (proposal) => {
+            const talent = await this.userService.findById(proposal.talentId);
+            return {
+              ...proposal,
+              talent: talent
+                ? {
+                    fullName: talent.fullName,
+                    email: talent.email,
+                  }
+                : null,
+            };
+          })
+        );
+
+        return {
+          mission: mission,
+          proposalCount: proposals.length,
+          proposals: proposalsWithTalent,
+        };
+      })
+    );
+
+    // Filter out missions with no proposals (optional)
+    return results.filter(r => r.proposalCount > 0);
   }
 }
 

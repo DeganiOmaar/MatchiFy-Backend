@@ -1,10 +1,16 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { UserService } from '../user/user.service';
 import { UpdateRecruiterProfileDto } from './dto/update-recruiter-profile.dto';
+import { MissionsService } from '../missions/missions.service';
+import { ProposalsService } from '../proposals/proposals.service';
 
 @Injectable()
 export class RecruiterService {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly missionsService: MissionsService,
+    private readonly proposalsService: ProposalsService,
+  ) {}
 
   async getProfile(userId: string) {
     // Find the user
@@ -92,5 +98,22 @@ export class RecruiterService {
       message: 'Profile updated successfully',
       user: userWithoutPassword,
     };
+  }
+
+  async getRecruiterMissions(recruiterId: string) {
+    // Get all missions created by this recruiter
+    const missions = await this.missionsService.findAllByRecruiter(recruiterId);
+    
+    // Get unviewed proposal counts for these missions
+    const missionIds = missions.map(m => m._id.toString());
+    const unviewedCounts = await this.proposalsService.getUnviewedCountsByMissionIds(missionIds);
+    
+    // Return only _id, title, createdAt, and unviewedCount for the mission selector
+    return missions.map(mission => ({
+      _id: mission._id,
+      title: mission.title,
+      createdAt: mission.createdAt,
+      unviewedCount: unviewedCounts[mission._id.toString()] || 0,
+    }));
   }
 }
