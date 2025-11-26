@@ -3,18 +3,18 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ProposalsController } from './proposals.controller';
 import { ProposalsService } from './proposals.service';
 import { Proposal, ProposalSchema } from './schemas/proposal.schema';
-import { AuthModule } from 'src/auth/auth.module';
-import { MissionsModule } from 'src/missions/missions.module';
-import { UserModule } from 'src/user/user.module';
-import { ConversationsModule } from 'src/conversations/conversations.module';
-import { AlertsModule } from 'src/alerts/alerts.module';
+import { AuthModule } from '../auth/auth.module';
+import { MissionsModule } from '../missions/missions.module';
+import { UserModule } from '../user/user.module';
+import { ConversationsModule } from '../conversations/conversations.module';
+import { AlertsModule } from '../alerts/alerts.module';
 
 @Module({
   imports: [
-    AuthModule,
+    forwardRef(() => AuthModule),
     forwardRef(() => MissionsModule),
     UserModule,
-    ConversationsModule,
+    forwardRef(() => ConversationsModule),
     AlertsModule,
     MongooseModule.forFeature([{ name: Proposal.name, schema: ProposalSchema }]),
   ],

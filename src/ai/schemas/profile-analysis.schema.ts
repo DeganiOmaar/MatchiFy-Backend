@@ -35,3 +35,6 @@ export const ProfileAnalysisSchema = SchemaFactory.createForClass(ProfileAnalysi
 // Index for efficient lookups
 ProfileAnalysisSchema.index({ talentId: 1, createdAt: -1 });
 
+
+
+

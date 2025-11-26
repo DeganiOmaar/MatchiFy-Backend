@@ -6,11 +6,11 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { MissionsService } from 'src/missions/missions.service';
-import { UserService } from 'src/user/user.service';
-import { ConversationsService } from 'src/conversations/conversations.service';
-import { AlertsService } from 'src/alerts/alerts.service';
-import { AlertType } from 'src/alerts/schemas/alert.schema';
+import { MissionsService } from '../missions/missions.service';
+import { UserService } from '../user/user.service';
+import { ConversationsService } from '../conversations/conversations.service';
+import { AlertsService } from '../alerts/alerts.service';
+import { AlertType } from '../alerts/schemas/alert.schema';
 import {
   Proposal,
   ProposalDocument,

@@ -28,7 +28,7 @@ import { SkillModule } from '../skill/skill.module';
     AiProfileAnalyzerService,
     ProfileAnalysisService,
   ],
-  exports: [AiService, AiProfileAnalyzerService],
+  exports: [AiService, AiProfileAnalyzerService, ProfileAnalysisService],
 })
 export class AiModule {}
 

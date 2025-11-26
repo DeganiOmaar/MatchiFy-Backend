@@ -1,23 +1,26 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
-import { UserService } from 'src/user/user.service';
+import { BadRequestException, Injectable, UnauthorizedException, Inject, forwardRef, Logger } from '@nestjs/common';
+import { UserService } from '../user/user.service';
 import { TalentSignupDto } from './dto/talent-signup.dto';
 import { RecruiterSignupDto } from './dto/recruiter-signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyResetCodeDto } from './dto/verify-reset-code.dto';
 import { ResetPasswordDto as ResetPasswordNewDto } from './dto/reset-password-new.dto';
-import { EmailService } from 'src/common/services/email.service';
+import { EmailService } from '../common/services/email.service';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import { BestMatchService } from '../missions/services/best-match.service';
 
 @Injectable()
 export class AuthService {
-
+  private readonly logger = new Logger(AuthService.name);
 
     constructor(
       private userService: UserService, 
       private jwt: JwtService,
       private emailService: EmailService,
+      @Inject(forwardRef(() => BestMatchService))
+      private readonly bestMatchService?: BestMatchService,
     ) {}
 
 async signupTalent(dto: TalentSignupDto) {
@@ -107,6 +110,28 @@ async signupRecruiter(dto: RecruiterSignupDto) {
       email: user.email, 
       role: user.role 
     });
+
+    // Refresh best match rankings for talents (async, non-blocking)
+    // Use optional chaining and check if service is available
+    if (user.role === 'talent') {
+      try {
+        // BestMatchService is injected with forwardRef, so it might not be available immediately
+        // We'll trigger it asynchronously to avoid blocking
+        setImmediate(() => {
+          if (this.bestMatchService) {
+            this.bestMatchService.refreshRankings(String(user._id)).catch((error) => {
+              this.logger.error(
+                `Failed to refresh best match rankings for talent ${user._id}: ${error.message}`,
+                error.stack,
+              );
+            });
+          }
+        });
+      } catch (error) {
+        // Silently fail if service is not available
+        this.logger.debug('BestMatchService not available during login');
+      }
+    }
 
     return { 
       message: 'Login successful',

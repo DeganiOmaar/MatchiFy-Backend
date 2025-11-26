@@ -9,7 +9,7 @@ import { MissionsModule } from '../missions/missions.module';
 
 @Module({
   imports: [
-    AuthModule,
+    forwardRef(() => AuthModule),
     forwardRef(() => MissionsModule),
     MongooseModule.forFeature([
       { name: Favorite.name, schema: FavoriteSchema },
