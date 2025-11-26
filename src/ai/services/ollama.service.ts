@@ -19,7 +19,8 @@ export class OllamaService {
   constructor(private configService: ConfigService) {
     const url = this.configService.get<string>('AI_LOCAL_URL', 'http://localhost:7007/analyze');
     const model = this.configService.get<string>('AI_MODEL', 'llama3.1');
-    const timeout = parseInt(this.configService.get<string>('AI_TIMEOUT', '30000'), 10);
+    // Increase default timeout to 120 seconds for proposal generation
+    const timeout = parseInt(this.configService.get<string>('AI_TIMEOUT', '120000'), 10);
 
     this.config = {
       url,
@@ -70,7 +71,7 @@ export class OllamaService {
         ? {
             model: this.config.model,
             prompt,
-            stream: false,
+            stream: true, // Enable streaming for better handling of long responses
             options: {
               ...(options?.temperature !== undefined && { temperature: options.temperature }),
               ...(options?.maxTokens !== undefined && { num_predict: options.maxTokens }),
@@ -132,7 +133,6 @@ export class OllamaService {
         }
 
         // Parse response
-        const responseData = await response.json();
         const elapsed = Date.now() - startTime;
 
         // Extract text from response (adapt based on API type)
@@ -140,14 +140,49 @@ export class OllamaService {
         let usage: { promptTokens?: number; completionTokens?: number } | undefined;
 
         if (isOllamaNative) {
-          // Ollama native API format
-          text = responseData.response || '';
-          usage = {
-            promptTokens: responseData.prompt_eval_count,
-            completionTokens: responseData.eval_count,
-          };
+          // Ollama native API format with streaming
+          const responseText = await response.text();
+          
+          // If streaming, parse NDJSON (newline-delimited JSON)
+          if (requestBody.stream) {
+            const lines = responseText.trim().split('\n');
+            let fullResponse = '';
+            let lastUsage: any = null;
+            
+            for (const line of lines) {
+              if (line.trim()) {
+                try {
+                  const chunk = JSON.parse(line);
+                  if (chunk.response) {
+                    fullResponse += chunk.response;
+                  }
+                  if (chunk.done && chunk.prompt_eval_count) {
+                    lastUsage = {
+                      promptTokens: chunk.prompt_eval_count,
+                      completionTokens: chunk.eval_count,
+                    };
+                  }
+                } catch (parseError) {
+                  this.logger.warn(`Failed to parse streaming chunk: ${line}`);
+                }
+              }
+            }
+            
+            text = fullResponse;
+            usage = lastUsage || undefined;
+          } else {
+            // Non-streaming response
+            const responseData = JSON.parse(responseText);
+            text = responseData.response || '';
+            usage = {
+              promptTokens: responseData.prompt_eval_count,
+              completionTokens: responseData.eval_count,
+            };
+          }
         } else {
           // Wrapper service format
+          const responseData = await response.json();
+          
           if (typeof responseData === 'string') {
             text = responseData;
           } else if (responseData.text) {
