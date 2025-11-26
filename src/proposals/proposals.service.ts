@@ -72,6 +72,14 @@ export class ProposalsService {
     const recruiter = await this.userService.findById(recruiterId);
     const recruiterName = recruiter?.fullName || 'Recruiter';
 
+    // Validate proposalContent length (additional check beyond DTO validation)
+    const proposalContent = createProposalDto.proposalContent?.trim() || '';
+    if (proposalContent.length < 200) {
+      throw new BadRequestException(
+        'Proposal content must be at least 200 characters long'
+      );
+    }
+
     const proposal = new this.proposalModel({
       missionId: createProposalDto.missionId,
       missionTitle: mission.title,
@@ -79,7 +87,8 @@ export class ProposalsService {
       recruiterName,
       talentId: talent.id,
       talentName: talent.fullName,
-      message: createProposalDto.message,
+      message: createProposalDto.message || '',
+      proposalContent: proposalContent,
       proposedBudget: createProposalDto.proposedBudget,
       estimatedDuration: createProposalDto.estimatedDuration,
       status: ProposalStatus.NOT_VIEWED,

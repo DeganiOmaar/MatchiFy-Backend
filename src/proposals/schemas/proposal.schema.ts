@@ -29,6 +29,9 @@ export class Proposal extends Document {
   @Prop({ required: true })
   message: string;
 
+  @Prop({ required: false, default: '' })
+  proposalContent?: string;
+
   @Prop({ type: Number })
   proposedBudget?: number;
 

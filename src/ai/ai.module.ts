@@ -17,6 +17,7 @@ import { SkillModule } from '../skill/skill.module';
 import { forwardRef } from '@nestjs/common';
 import { MissionsModule } from '../missions/missions.module';
 import { MissionFitAnalyzerService } from './services/mission-fit-analyzer.service';
+import { ProposalGeneratorService } from './services/proposal-generator.service';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { MissionFitAnalyzerService } from './services/mission-fit-analyzer.servi
     AiProfileAnalyzerService,
     ProfileAnalysisService,
     MissionFitAnalyzerService,
+    ProposalGeneratorService,
   ],
   exports: [AiService, AiProfileAnalyzerService, ProfileAnalysisService],
 })

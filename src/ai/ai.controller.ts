@@ -22,7 +22,9 @@ import { ProfileAnalysisResponseDto } from './dto/profile-analysis-response.dto'
 import { ProfileAnalysisService } from './services/profile-analysis.service';
 import { MissionFitAnalyzerService } from './services/mission-fit-analyzer.service';
 import { MissionFitResponseDto } from './dto/mission-fit-response.dto';
-import { Param } from '@nestjs/common';
+import { ProposalGeneratorService } from './services/proposal-generator.service';
+import { GenerateProposalDto, GenerateProposalResponseDto } from './dto/generate-proposal.dto';
+import { Param, Body } from '@nestjs/common';
 
 // Simple in-memory rate limiting
 // In production, use Redis or a proper rate limiting library
@@ -45,6 +47,7 @@ export class AiController {
     private readonly aiProfileAnalyzerService: AiProfileAnalyzerService,
     private readonly profileAnalysisService: ProfileAnalysisService,
     private readonly missionFitAnalyzerService: MissionFitAnalyzerService,
+    private readonly proposalGeneratorService: ProposalGeneratorService,
   ) {
     // Clean up old rate limit entries every hour
     setInterval(() => this.cleanupRateLimit(), 60 * 60 * 1000);
@@ -252,6 +255,105 @@ export class AiController {
         {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
           message: 'Failed to analyze mission fit. Please try again later.',
+          error: 'Internal Server Error',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Post('proposals/generate')
+  @Roles('talent')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Generate proposal content with AI',
+    description:
+      'Generates a professional proposal for a specific mission using AI. Uses talent profile, skills, portfolio, and mission details. Rate limited to prevent abuse.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Proposal generated successfully',
+    type: GenerateProposalResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Invalid mission ID or rate limit exceeded',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing JWT token',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - User is not a talent',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Not Found - Mission not found',
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'Service Unavailable - AI service is temporarily unavailable',
+  })
+  async generateProposal(
+    @Request() req: any,
+    @Body() dto: GenerateProposalDto,
+  ): Promise<GenerateProposalResponseDto> {
+    const talentId = req.user.id;
+    const startTime = Date.now();
+
+    // Check rate limit (separate from profile analysis)
+    const rateLimitKey = `proposal-gen-${talentId}`;
+    if (!this.checkRateLimit(rateLimitKey)) {
+      this.logger.warn(`Rate limit exceeded for proposal generation by talent ${talentId}`);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.TOO_MANY_REQUESTS,
+          message: `Rate limit exceeded. Maximum ${MAX_REQUESTS_PER_DAY} proposal generations per day. Please try again tomorrow.`,
+          error: 'Too Many Requests',
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    try {
+      this.logger.log(
+        `Proposal generation requested by talent ${talentId} for mission ${dto.missionId}`,
+      );
+      const proposalContent =
+        await this.proposalGeneratorService.generateProposalForMission(
+          talentId,
+          dto.missionId,
+        );
+
+      // Increment rate limit counter
+      this.incrementRateLimit(rateLimitKey);
+
+      const duration = Date.now() - startTime;
+      this.logger.log(
+        `Proposal generation completed successfully for talent ${talentId} and mission ${dto.missionId} in ${duration}ms`,
+      );
+
+      return { proposalContent };
+    } catch (error: any) {
+      const duration = Date.now() - startTime;
+      const errorStatus = error instanceof HttpException ? error.getStatus() : 'UNKNOWN';
+
+      this.logger.error(
+        `Proposal generation failed for talent ${talentId} and mission ${dto.missionId} after ${duration}ms - Status: ${errorStatus} - Error: ${error.message}`,
+        error.stack,
+      );
+
+      // Re-throw HTTP exceptions as-is (they already have user-friendly messages)
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      // Map other errors to user-friendly messages
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to generate proposal. Please try again later or write your proposal manually.',
           error: 'Internal Server Error',
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
