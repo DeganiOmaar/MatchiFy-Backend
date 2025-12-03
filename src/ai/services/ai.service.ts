@@ -111,6 +111,75 @@ export class AiService {
   }
 
   /**
+   * Generate content using the configured AI provider with streaming support
+   * @param prompt The prompt to send to the AI
+   * @param onChunk Callback function invoked for each chunk of streamed text
+   * @param options Generation options (temperature, maxTokens)
+   * @returns Final AI response with complete text and usage stats
+   */
+  async generateContentStream(
+    prompt: string,
+    onChunk: (chunk: string) => void,
+    options?: {
+      temperature?: number;
+      maxTokens?: number;
+    },
+  ): Promise<AiResponse> {
+    if (!this.isAvailable()) {
+      throw new ServiceUnavailableException(
+        'AI service is not available. Please check configuration.',
+      );
+    }
+
+    const startTime = Date.now();
+    this.logger.debug(`Generating streaming content with provider: ${this.provider}`);
+
+    try {
+      let response: AiResponse;
+
+      if (this.provider === 'local') {
+        response = await this.ollamaService.generateContentStream(prompt, onChunk, options);
+      } else if (this.provider === 'gemini') {
+        // Gemini doesn't support streaming yet, fallback to non-streaming
+        this.logger.warn('Gemini provider does not support streaming, using non-streaming mode');
+        response = await this.geminiService.generateContent(prompt, options);
+        // Send the entire response as one chunk
+        onChunk(response.text);
+      } else {
+        throw new ServiceUnavailableException(
+          `Unsupported AI provider: ${this.provider}`,
+        );
+      }
+
+      const elapsed = Date.now() - startTime;
+      this.logger.log(`AI streaming request completed in ${elapsed}ms (provider: ${this.provider})`);
+
+      return response;
+    } catch (error: any) {
+      const elapsed = Date.now() - startTime;
+      this.logger.error(
+        `AI streaming request failed after ${elapsed}ms (provider: ${this.provider}): ${error.message}`,
+        error.stack,
+      );
+
+      // Map errors to user-friendly messages
+      if (error instanceof ServiceUnavailableException) {
+        throw new ServiceUnavailableException(
+          'AI service is temporarily unavailable. Please try again later.',
+        );
+      }
+
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new ServiceUnavailableException(
+        'AI service is temporarily unavailable. Please try again later.',
+      );
+    }
+  }
+
+  /**
    * Generate JSON content with retry logic
    */
   async generateJsonContent(

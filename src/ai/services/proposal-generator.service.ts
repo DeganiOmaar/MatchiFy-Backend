@@ -185,6 +185,146 @@ export class ProposalGeneratorService {
   }
 
   /**
+   * Generate a professional proposal for a mission using AI with streaming support
+   * @param talentId The ID of the talent
+   * @param missionId The ID of the mission
+   * @param onChunk Callback function invoked for each chunk of streamed text
+   * @returns The final complete proposal text
+   */
+  async generateProposalForMissionStream(
+    talentId: string,
+    missionId: string,
+    onChunk: (chunk: string) => void,
+  ): Promise<string> {
+    try {
+      // Load mission details
+      const mission = await this.missionsService.findOne(missionId);
+      if (!mission) {
+        throw new NotFoundException(`Mission ${missionId} not found`);
+      }
+
+      // Load talent profile data
+      const talent = await this.userService.findById(talentId);
+      if (!talent || talent.role !== 'talent') {
+        throw new NotFoundException(`Talent ${talentId} not found`);
+      }
+
+      // Get talent skills
+      const skillNames: string[] = [];
+      if (talent.skills && talent.skills.length > 0) {
+        const skills = await this.skillService.findByIds(talent.skills);
+        skillNames.push(...skills.map((s) => s.name));
+      }
+
+      // Get portfolio projects
+      const portfolioProjects = await this.portfolioService.findAllByTalent(
+        talentId,
+      );
+      const projectSummaries = portfolioProjects
+        .slice(0, 5) // Limit to top 5 projects
+        .map((p) => ({
+          title: p.title,
+          description: p.description || '',
+          role: p.role || '',
+        }));
+
+      // Get profile analysis if available
+      const profileAnalysis =
+        await this.profileAnalysisService.findLatestByTalentId(talentId);
+
+      // Get CV text if available
+      let cvText = '';
+      if (talent.cvUrl) {
+        try {
+          cvText = await this.extractCvText(talent.cvUrl);
+        } catch (error) {
+          this.logger.warn(
+            `Failed to extract CV text for talent ${talentId}: ${error.message}`,
+          );
+        }
+      }
+
+      // Build prompt
+      const prompt = this.buildProposalPrompt(
+        mission,
+        {
+          name: talent.fullName,
+          headline: talent.description || '',
+          skills: skillNames,
+          projects: projectSummaries,
+          profileAnalysis: profileAnalysis
+            ? {
+                summary: profileAnalysis.summary,
+                keyStrengths: profileAnalysis.keyStrengths,
+              }
+            : null,
+          cvText,
+        },
+      );
+
+      // Generate proposal using AI with streaming
+      let proposalText = '';
+      
+      await this.aiService.generateContentStream(
+        prompt,
+        (chunk: string) => {
+          proposalText += chunk;
+          onChunk(chunk);
+        },
+        {
+          temperature: 0.7,
+          maxTokens: 2000,
+        },
+      );
+
+      proposalText = proposalText.trim();
+
+      // Validate that all mandatory sections are present
+      const validationResult = this.validateProposalStructure(proposalText);
+      if (!validationResult.isValid) {
+        this.logger.warn(
+          `Missing or invalid sections. Missing: ${validationResult.missingSections.join(', ')}`,
+        );
+        
+        // For streaming, we cannot retry as we've already sent chunks
+        // Log the error but return what we have
+        this.logger.error(
+          `Proposal missing sections after streaming: ${validationResult.missingSections.join(', ')}`,
+        );
+        
+        // Still return the proposal, but it may be incomplete
+        // The client can decide whether to use it or regenerate
+      }
+
+      // Ensure minimum length
+      if (proposalText.length < this.MIN_PROPOSAL_LENGTH) {
+        this.logger.warn(
+          `Generated proposal is too short (${proposalText.length} chars)`,
+        );
+        // Cannot extend in streaming mode, return what we have
+      }
+
+      // Clean up the text (remove markdown, but preserve section structure)
+      proposalText = this.cleanProposalText(proposalText);
+
+      return proposalText;
+    } catch (error) {
+      this.logger.error(
+        `Failed to generate streaming proposal for talent ${talentId} and mission ${missionId}: ${error.message}`,
+        error.stack,
+      );
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new ServiceUnavailableException(
+        'AI generation is temporarily unavailable. Please try again later or write your proposal manually.',
+      );
+    }
+  }
+
+  /**
    * Build the prompt for proposal generation
    */
   private buildProposalPrompt(mission: any, talentData: any): string {
@@ -502,4 +642,8 @@ If you understand these instructions, generate the complete structured proposal 
     }
   }
 }
+
+
+
+
 

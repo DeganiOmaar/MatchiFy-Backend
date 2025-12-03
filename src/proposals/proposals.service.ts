@@ -363,6 +363,15 @@ export class ProposalsService {
     }
 
     const previousStatus = proposal.status;
+    
+    // Validate rejection reason
+    if (updateProposalStatusDto.status === ProposalStatus.REFUSED) {
+      if (!updateProposalStatusDto.rejectionReason || updateProposalStatusDto.rejectionReason.trim() === '') {
+        throw new BadRequestException('Rejection reason is required when refusing a proposal');
+      }
+      proposal.rejectionReason = updateProposalStatusDto.rejectionReason;
+    }
+
     proposal.status = updateProposalStatusDto.status;
     const saved = await proposal.save();
 
@@ -413,7 +422,7 @@ export class ProposalsService {
           missionId: proposal.missionId,
           proposalId: (proposal._id as any).toString(),
           title: `Your proposal for ${missionTitle} has been refused`,
-          message: `Your proposal for "${missionTitle}" has been refused by ${recruiterName}.`,
+          message: `Your proposal for "${missionTitle}" has been refused by ${recruiterName}. Reason: ${updateProposalStatusDto.rejectionReason}`,
           recruiterId: recruiterId,
           recruiterName: recruiterName,
           recruiterProfileImage: recruiter?.profileImage,

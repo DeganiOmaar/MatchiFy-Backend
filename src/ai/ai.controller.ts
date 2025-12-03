@@ -7,6 +7,8 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  Sse,
+  MessageEvent,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -359,6 +361,126 @@ export class AiController {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  @Sse('proposals/generate/stream')
+  @Roles('talent')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Generate proposal content with AI (streaming)',
+    description:
+      'Generates a professional proposal for a specific mission using AI with real-time streaming. Uses talent profile, skills, portfolio, and mission details. Streams the proposal content as it is generated. Rate limited to prevent abuse.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Proposal streaming started',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Invalid mission ID or rate limit exceeded',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing JWT token',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - User is not a talent',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Not Found - Mission not found',
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'Service Unavailable - AI service is temporarily unavailable',
+  })
+  generateProposalStream(
+    @Request() req: any,
+  ): any {
+    const talentId = req.user.id;
+    const missionId = req.query.missionId;
+
+    if (!missionId) {
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.BAD_REQUEST,
+          message: 'missionId query parameter is required',
+          error: 'Bad Request',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const startTime = Date.now();
+
+    // Check rate limit (separate from profile analysis)
+    const rateLimitKey = `proposal-gen-${talentId}`;
+    if (!this.checkRateLimit(rateLimitKey)) {
+      this.logger.warn(`Rate limit exceeded for proposal generation by talent ${talentId}`);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.TOO_MANY_REQUESTS,
+          message: `Rate limit exceeded. Maximum ${MAX_REQUESTS_PER_DAY} proposal generations per day. Please try again tomorrow.`,
+          error: 'Too Many Requests',
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    this.logger.log(
+      `Streaming proposal generation requested by talent ${talentId} for mission ${missionId}`,
+    );
+
+    // Import Observable and Subject from rxjs
+    const { Observable } = require('rxjs');
+
+    return new Observable((observer) => {
+      // Generate proposal with streaming
+      this.proposalGeneratorService
+        .generateProposalForMissionStream(
+          talentId,
+          missionId,
+          (chunk: string) => {
+            // Send each chunk as an SSE event
+            observer.next({ data: { chunk } });
+          },
+        )
+        .then((finalProposal) => {
+          // Increment rate limit counter after successful generation
+          this.incrementRateLimit(rateLimitKey);
+
+          const duration = Date.now() - startTime;
+          this.logger.log(
+            `Streaming proposal generation completed successfully for talent ${talentId} and mission ${missionId} in ${duration}ms`,
+          );
+
+          // Send final event with DONE marker
+          observer.next({ data: { done: true, proposalContent: finalProposal } });
+          observer.complete();
+        })
+        .catch((error: any) => {
+          const duration = Date.now() - startTime;
+          const errorStatus = error instanceof HttpException ? error.getStatus() : 'UNKNOWN';
+
+          this.logger.error(
+            `Streaming proposal generation failed for talent ${talentId} and mission ${missionId} after ${duration}ms - Status: ${errorStatus} - Error: ${error.message}`,
+            error.stack,
+          );
+
+          // Send error event
+          observer.next({
+            data: {
+              error: true,
+              message:
+                error instanceof HttpException
+                  ? error.message
+                  : 'Failed to generate proposal. Please try again later or write your proposal manually.',
+            },
+          });
+          observer.error(error);
+        });
+    });
   }
 
   /**

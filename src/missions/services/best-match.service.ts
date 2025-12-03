@@ -30,6 +30,7 @@ export interface BestMatchMission {
 export class BestMatchService {
   private readonly logger = new Logger(BestMatchService.name);
   private readonly CACHE_DURATION_HOURS = 12;
+  private readonly refreshInProgress = new Map<string, Promise<BestMatchMission[]>>();
 
   constructor(
     @InjectModel(Mission.name) private missionModel: Model<MissionDocument>,
@@ -42,31 +43,82 @@ export class BestMatchService {
   /**
    * Get best match missions for a talent
    * Uses cached results if available and valid
+   * Returns stale cache if refresh fails
    */
   async getBestMatches(talentId: string): Promise<BestMatchMission[]> {
     // Check cache first
     const cached = await this.getCachedRankings(talentId);
-    if (cached) {
-      this.logger.debug(`Using cached rankings for talent ${talentId}`);
+    if (cached && cached.length > 0) {
+      this.logger.debug(`Using cached rankings for talent ${talentId} (${cached.length} missions)`);
+      
+      // Trigger refresh in background (non-blocking)
+      this.refreshRankings(talentId).catch((error) => {
+        this.logger.error(
+          `Failed to refresh rankings for talent ${talentId}: ${error.message}`,
+          error.stack,
+        );
+      });
+      
       return cached;
     }
 
-    // If no cache, compute rankings (async, don't block)
-    this.refreshRankings(talentId).catch((error) => {
-      this.logger.error(
-        `Failed to refresh rankings for talent ${talentId}: ${error.message}`,
-        error.stack,
+    // If no cache, try to compute rankings synchronously (but with timeout protection)
+    try {
+      const rankings = await Promise.race([
+        this.refreshRankings(talentId),
+        new Promise<BestMatchMission[]>((_, reject) =>
+          setTimeout(() => reject(new Error('Refresh timeout')), 90000), // 90s timeout (Ollama peut être lent)
+        ),
+      ]);
+      
+      if (rankings && rankings.length > 0) {
+        return rankings;
+      }
+    } catch (error: any) {
+      this.logger.warn(
+        `Failed to refresh rankings synchronously for talent ${talentId}: ${error.message}`,
       );
-    });
+      
+      // Try to get stale cache (expired but still useful)
+      const staleCache = await this.getCachedRankings(talentId, true);
+      if (staleCache && staleCache.length > 0) {
+        this.logger.debug(`Using stale cache for talent ${talentId}`);
+        return staleCache;
+      }
+    }
 
-    // Return empty array if no cache (will be populated on next request)
+    // Return empty array if no cache available
     return [];
   }
 
   /**
    * Refresh rankings for a talent (async background process)
+   * Prevents multiple simultaneous refreshes for the same talent
    */
   async refreshRankings(talentId: string): Promise<BestMatchMission[]> {
+    // Check if a refresh is already in progress for this talent
+    const existingRefresh = this.refreshInProgress.get(talentId);
+    if (existingRefresh) {
+      this.logger.debug(`Refresh already in progress for talent ${talentId}, waiting...`);
+      return existingRefresh;
+    }
+    
+    // Start new refresh
+    const refreshPromise = this.doRefreshRankings(talentId);
+    this.refreshInProgress.set(talentId, refreshPromise);
+    
+    // Clean up when done
+    refreshPromise.finally(() => {
+      this.refreshInProgress.delete(talentId);
+    });
+    
+    return refreshPromise;
+  }
+  
+  /**
+   * Internal method to actually perform the refresh
+   */
+  private async doRefreshRankings(talentId: string): Promise<BestMatchMission[]> {
     this.logger.log(`Refreshing rankings for talent ${talentId}`);
 
     // Load latest profile analysis
@@ -78,7 +130,9 @@ export class BestMatchService {
       this.logger.warn(
         `No profile analysis found for talent ${talentId}. Cannot compute best matches.`,
       );
-      return [];
+      // Return stale cache if available
+      const staleCache = await this.getCachedRankings(talentId, true);
+      return staleCache || [];
     }
 
     // Load all missions
@@ -86,22 +140,47 @@ export class BestMatchService {
 
     if (missions.length === 0) {
       this.logger.debug(`No missions found in database`);
+      // Return stale cache if available
+      const staleCache = await this.getCachedRankings(talentId, true);
+      return staleCache || [];
+    }
+
+    // Score all missions (with error handling)
+    let scoredMissions: BestMatchMission[] = [];
+    try {
+      scoredMissions = await this.scoreMissions(
+        missions,
+        profileAnalysis,
+      );
+    } catch (error: any) {
+      this.logger.error(
+        `Error scoring missions for talent ${talentId}: ${error.message}`,
+      );
+      // Return stale cache if available
+      const staleCache = await this.getCachedRankings(talentId, true);
+      if (staleCache && staleCache.length > 0) {
+        this.logger.debug(`Returning stale cache after scoring error`);
+        return staleCache;
+      }
       return [];
     }
 
-    // Score all missions
-    const scoredMissions = await this.scoreMissions(
-      missions,
-      profileAnalysis,
-    );
+    // If we got no results, return stale cache
+    if (scoredMissions.length === 0) {
+      this.logger.warn(`No missions scored successfully for talent ${talentId}`);
+      const staleCache = await this.getCachedRankings(talentId, true);
+      return staleCache || [];
+    }
 
     // Sort by matchScore descending and take top 20
     const topMatches = scoredMissions
       .sort((a, b) => b.matchScore - a.matchScore)
       .slice(0, 20);
 
-    // Cache results
-    await this.cacheRankings(talentId, topMatches);
+    // Cache results (only if we have results)
+    if (topMatches.length > 0) {
+      await this.cacheRankings(talentId, topMatches);
+    }
 
     this.logger.log(
       `Rankings refreshed for talent ${talentId}: ${topMatches.length} matches found`,
@@ -125,10 +204,11 @@ export class BestMatchService {
     const recommendedTags = profileAnalysis.recommendedTags?.join(', ') || '';
 
     // Score missions in parallel (with concurrency limit to avoid overwhelming Ollama)
-    const CONCURRENCY_LIMIT = 5;
+    // Reduced to 2 to prevent timeouts and reduce load on Ollama
+    const CONCURRENCY_LIMIT = 2;
     for (let i = 0; i < missions.length; i += CONCURRENCY_LIMIT) {
       const batch = missions.slice(i, i + CONCURRENCY_LIMIT);
-      const batchResults = await Promise.all(
+      const batchResults = await Promise.allSettled(
         batch.map((mission) =>
           this.scoreSingleMission(mission, {
             summary: profileSummary,
@@ -138,7 +218,21 @@ export class BestMatchService {
         ),
       );
 
-      scoredMissions.push(...batchResults.filter((r) => r !== null));
+      // Extract successful results, log failures but continue
+      for (const result of batchResults) {
+        if (result.status === 'fulfilled' && result.value !== null) {
+          scoredMissions.push(result.value);
+        } else if (result.status === 'rejected') {
+          this.logger.warn(
+            `Failed to score mission in batch: ${result.reason?.message || 'Unknown error'}`,
+          );
+        }
+      }
+      
+      // Add a small delay between batches to avoid overwhelming Ollama
+      if (i + CONCURRENCY_LIMIT < missions.length) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay between batches
+      }
     }
 
     return scoredMissions;
@@ -349,15 +443,19 @@ export class BestMatchService {
 
   /**
    * Get cached rankings if available and valid
+   * @param allowStale If true, returns expired cache as fallback
    */
   private async getCachedRankings(
     talentId: string,
+    allowStale: boolean = false,
   ): Promise<BestMatchMission[] | null> {
+    const query: any = { talentId };
+    if (!allowStale) {
+      query.expiresAt = { $gt: new Date() };
+    }
+    
     const cache = await this.cacheModel
-      .findOne({
-        talentId,
-        expiresAt: { $gt: new Date() },
-      })
+      .findOne(query)
       .sort({ createdAt: -1 })
       .exec();
 
