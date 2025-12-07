@@ -29,6 +29,12 @@ export class Contract extends Document {
   @Prop({ required: true, type: String })
   content: string;
 
+  @Prop({ required: true, type: String })
+  scope: string;
+
+  @Prop({ required: true, type: String })
+  budget: string;
+
   @Prop({ type: String })
   paymentDetails?: string;
 

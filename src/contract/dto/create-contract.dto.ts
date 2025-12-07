@@ -32,36 +32,44 @@ export class CreateContractDto {
   title: string;
 
   @ApiProperty({
-    description: 'Contract terms/content',
-    example: 'Les termes et conditions du contrat...',
+    description: 'Project Scope & Deliverables',
+    example: 'Development of a mobile app...',
   })
   @IsString()
   @IsNotEmpty()
-  content: string;
+  scope: string;
+
+  @ApiProperty({
+    description: 'Compensation & Payment Terms',
+    example: '5000€ fixed price',
+  })
+  @IsString()
+  @IsNotEmpty()
+  budget: string;
+
+  @ApiProperty({
+    description: 'Start date',
+    example: '2025-02-01',
+  })
+  @IsDateString()
+  @IsNotEmpty()
+  startDate: string;
+
+  @ApiProperty({
+    description: 'End date',
+    example: '2025-08-01',
+  })
+  @IsDateString()
+  @IsNotEmpty()
+  endDate: string;
 
   @ApiPropertyOptional({
-    description: 'Payment details',
+    description: 'Payment details (legacy/optional)',
     example: '50000€ - Paiement mensuel',
   })
   @IsOptional()
   @IsString()
   paymentDetails?: string;
-
-  @ApiPropertyOptional({
-    description: 'Start date',
-    example: '2025-02-01',
-  })
-  @IsOptional()
-  @IsDateString()
-  startDate?: string;
-
-  @ApiPropertyOptional({
-    description: 'End date',
-    example: '2025-08-01',
-  })
-  @IsOptional()
-  @IsDateString()
-  endDate?: string;
 
   @ApiProperty({
     description: 'Recruiter signature (base64 encoded image)',
