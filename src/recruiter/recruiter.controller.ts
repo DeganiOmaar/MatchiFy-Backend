@@ -24,7 +24,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RecruiterService } from './recruiter.service';
 import { UpdateRecruiterProfileDto } from './dto/update-recruiter-profile.dto';
-import { profileImageUploadOptions } from '../common/utils/file-upload.config';
+import { profileImageUploadOptions } from '../common/utils/profile-image-upload.config';
 import { ProposalsService } from '../proposals/proposals.service';
 
 @ApiTags('recruiter')

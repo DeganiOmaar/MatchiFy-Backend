@@ -25,7 +25,8 @@ import { UpdateTalentProfileDto } from './dto/update-talent-profile.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { profileImageUploadOptions, cvUploadOptions } from '../common/utils/file-upload.config';
+import { profileImageUploadOptions } from '../common/utils/profile-image-upload.config';
+import { cvUploadOptions } from '../common/utils/cv-upload.config';
 import { diskStorage } from 'multer';
 
 @ApiTags('talent')
