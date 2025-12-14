@@ -6,10 +6,13 @@ import { CreateOfferDto } from './dto/create-offer.dto';
 import { UpdateOfferDto } from './dto/update-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
 
+import { UserService } from '../user/user.service';
+
 @Injectable()
 export class OffersService {
   constructor(
     @InjectModel(Offer.name) private readonly offerModel: Model<OfferDocument>,
+    private readonly userService: UserService,
   ) {}
 
   /**
@@ -152,5 +155,33 @@ export class OffersService {
       .find({ talentId })
       .sort({ dateOfPosting: -1 })
       .exec();
+  }
+
+  async addReview(
+    offerId: string,
+    recruiterId: string,
+    rating: number,
+    message: string,
+  ): Promise<Offer> {
+    const offer = await this.offerModel.findById(offerId).exec();
+    if (!offer) {
+      throw new NotFoundException(`Offer with ID ${offerId} not found`);
+    }
+
+    const recruiter = await this.userService.findById(recruiterId);
+    if (!recruiter) {
+      throw new NotFoundException(`Recruiter with ID ${recruiterId} not found`);
+    }
+
+    const review = {
+      recruiterId,
+      recruiterName: recruiter.fullName,
+      rating,
+      message,
+      createdAt: new Date(),
+    };
+
+    offer.reviews.push(review);
+    return offer.save();
   }
 }

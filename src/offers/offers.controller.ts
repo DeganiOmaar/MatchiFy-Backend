@@ -33,8 +33,9 @@ import { OffersService } from './offers.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { UpdateOfferDto } from './dto/update-offer.dto';
 import { GetOffersQueryDto } from './dto/get-offers-query.dto';
+import { CreateReviewDto } from './dto/create-review.dto';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { extname } from 'node:path';
 
 @ApiTags('offers')
 @Controller('offers')
@@ -424,5 +425,38 @@ export class OffersController {
   async remove(@Param('id') id: string, @Request() req: any) {
     const talentId = req.user.id;
     return this.offersService.remove(id, talentId);
+  }
+
+  @Post(':id/reviews')
+  @Roles('recruiter')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Add a review to a service offer',
+    description: 'Allows authenticated recruiters to add a rating and review to an offer.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Offer ID',
+  })
+  @ApiBody({ type: CreateReviewDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Review added successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Not Found - Offer does not exist',
+  })
+  async addReview(
+    @Param('id') id: string,
+    @Body() createReviewDto: CreateReviewDto,
+    @Request() req: any,
+  ) {
+    return this.offersService.addReview(
+      id,
+      req.user.id,
+      createReviewDto.rating,
+      createReviewDto.message,
+    );
   }
 }

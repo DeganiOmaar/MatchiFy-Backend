@@ -45,6 +45,26 @@ export class Offer extends Document {
 
   @Prop({ type: Date, default: Date.now })
   dateOfPosting: Date;
+
+  @Prop({
+    type: [
+      {
+        recruiterId: { type: String, required: true },
+        recruiterName: { type: String, required: true },
+        rating: { type: Number, required: true },
+        message: { type: String, required: true },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
+    default: [],
+  })
+  reviews: {
+    recruiterId: string;
+    recruiterName: string;
+    rating: number;
+    message: string;
+    createdAt: Date;
+  }[];
 }
 
 export const OfferSchema = SchemaFactory.createForClass(Offer);
