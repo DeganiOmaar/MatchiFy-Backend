@@ -17,6 +17,7 @@ import { FavoritesModule } from './favorites/favorites.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { ContractModule } from './contract/contract.module';
 import { AiModule } from './ai/ai.module';
+import { OffersModule } from './offers/offers.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { AiModule } from './ai/ai.module';
     AlertsModule,
     ContractModule,
     AiModule,
+    OffersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
