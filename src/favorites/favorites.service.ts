@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Favorite, FavoriteDocument } from './schemas/favorite.schema';
 import { Mission, MissionDocument } from '../missions/schemas/mission.schema';
 
@@ -21,6 +21,11 @@ export class FavoritesService {
    * Add a mission to favorites
    */
   async addFavorite(missionId: string, talentId: string): Promise<Favorite> {
+    // Validate that missionId is a valid ObjectId
+    if (!Types.ObjectId.isValid(missionId)) {
+      throw new BadRequestException(`Invalid mission ID format: ${missionId}`);
+    }
+    
     // Check if mission exists
     const mission = await this.missionModel.findById(missionId).exec();
     if (!mission) {

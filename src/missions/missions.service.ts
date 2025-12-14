@@ -7,7 +7,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Mission, MissionDocument } from './schemas/mission.schema';
 import { CreateMissionDto } from './dto/create-mission.dto';
 import { UpdateMissionDto } from './dto/update-mission.dto';
@@ -121,8 +121,14 @@ export class MissionsService {
    * @param talentId - Optional talent ID to include isFavorite status
    * @returns L'offre trouvée
    * @throws NotFoundException si l'offre n'existe pas
+   * @throws BadRequestException si l'ID n'est pas un ObjectId valide
    */
   async findOne(missionId: string, talentId?: string): Promise<any> {
+    // Validate that missionId is a valid ObjectId
+    if (!Types.ObjectId.isValid(missionId)) {
+      throw new BadRequestException(`Invalid mission ID format: ${missionId}`);
+    }
+    
     const mission = await this.missionModel.findById(missionId).exec();
     if (!mission) {
       throw new NotFoundException(`Mission with ID ${missionId} not found`);
@@ -158,6 +164,11 @@ export class MissionsService {
     updateMissionDto: UpdateMissionDto,
     recruiterId: string
   ): Promise<MissionDocument> {
+    // Validate that missionId is a valid ObjectId
+    if (!Types.ObjectId.isValid(missionId)) {
+      throw new BadRequestException(`Invalid mission ID format: ${missionId}`);
+    }
+    
     // Vérifier que l'offre existe
     const mission = await this.findOne(missionId);
 
@@ -198,6 +209,11 @@ export class MissionsService {
    * @throws ForbiddenException si le recruteur n'est pas propriétaire
    */
   async remove(missionId: string, recruiterId: string): Promise<MissionDocument> {
+    // Validate that missionId is a valid ObjectId
+    if (!Types.ObjectId.isValid(missionId)) {
+      throw new BadRequestException(`Invalid mission ID format: ${missionId}`);
+    }
+    
     // Vérifier que l'offre existe
     const mission = await this.findOne(missionId);
 
@@ -233,6 +249,11 @@ export class MissionsService {
     missionId: string,
     value: number = 1
   ): Promise<void> {
+    // Validate that missionId is a valid ObjectId
+    if (!Types.ObjectId.isValid(missionId)) {
+      throw new BadRequestException(`Invalid mission ID format: ${missionId}`);
+    }
+    
     await this.missionModel
       .findByIdAndUpdate(
         missionId,
@@ -249,6 +270,11 @@ export class MissionsService {
     status: string,
     recruiterId: string
   ): Promise<MissionDocument> {
+    // Validate that missionId is a valid ObjectId
+    if (!Types.ObjectId.isValid(missionId)) {
+      throw new BadRequestException(`Invalid mission ID format: ${missionId}`);
+    }
+    
     const mission = await this.findOne(missionId);
     
     if (mission.recruiterId.toString() !== recruiterId) {

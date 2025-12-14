@@ -25,10 +25,11 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { MissionsService } from './missions.service';
+import { BestMatchService } from './services/best-match.service';
 import { CreateMissionDto } from './dto/create-mission.dto';
 import { UpdateMissionDto } from './dto/update-mission.dto';
 import { Observable } from 'rxjs';
-import { ProposalsService } from 'src/proposals/proposals.service';
+import { ProposalsService } from '../proposals/proposals.service';
 import { Inject, forwardRef } from '@nestjs/common';
 
 @ApiTags('missions')
@@ -38,6 +39,7 @@ import { Inject, forwardRef } from '@nestjs/common';
 export class MissionsController {
   constructor(
     private readonly missionsService: MissionsService,
+    private readonly bestMatchService: BestMatchService,
     @Inject(forwardRef(() => ProposalsService))
     private readonly proposalsService: ProposalsService
   ) {}
@@ -260,6 +262,46 @@ export class MissionsController {
     const recruiterId = req.user.id;
     const talentId = req.user.role === 'talent' ? req.user.id : undefined;
     return this.missionsService.findAllByRecruiter(recruiterId, talentId);
+  }
+
+  @Get('best-match')
+  @Roles('talent')
+  @ApiOperation({
+    summary: 'Get best match missions for talent',
+    description:
+      'Returns top 20 missions ranked by AI match score based on talent profile analysis. Results are cached for 12 hours.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Best match missions retrieved successfully',
+    schema: {
+      example: {
+        missions: [
+          {
+            missionId: '673ab2c3e8f9a1234567890c',
+            title: 'Développeur Full Stack React/Node.js',
+            description:
+              'Nous recherchons un développeur full stack expérimenté pour rejoindre notre équipe.',
+            matchScore: 85,
+            reasoning:
+              'Strong match: Your React and Node.js experience aligns perfectly with the mission requirements.',
+          },
+        ],
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing JWT token',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - User is not a talent',
+  })
+  async getBestMatches(@Request() req: any) {
+    const talentId = req.user.id;
+    const missions = await this.bestMatchService.getBestMatches(talentId);
+    return { missions };
   }
 
   @Get(':id')

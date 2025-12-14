@@ -56,9 +56,9 @@ export class User extends Document {
   })
   skills?: string[]; // Array of Skill ObjectIds
 
-  // Portfolio link
+  // CV URL (for talent profiles)
   @Prop()
-  portfolioLink?: string;
+  cvUrl?: string;
 
   // Password reset fields
   @Prop()

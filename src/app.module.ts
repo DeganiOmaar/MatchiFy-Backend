@@ -16,6 +16,7 @@ import { ConversationsModule } from './conversations/conversations.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { ContractModule } from './contract/contract.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { ContractModule } from './contract/contract.module';
     FavoritesModule,
     AlertsModule,
     ContractModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [AppService],

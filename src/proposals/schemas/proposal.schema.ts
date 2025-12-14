@@ -29,6 +29,12 @@ export class Proposal extends Document {
   @Prop({ required: true })
   message: string;
 
+  @Prop({ required: false })
+  rejectionReason?: string;
+
+  @Prop({ required: false, default: '' })
+  proposalContent?: string;
+
   @Prop({ type: Number })
   proposedBudget?: number;
 
@@ -46,6 +52,15 @@ export class Proposal extends Document {
 
   @Prop({ type: Boolean, default: false, index: true })
   archived: boolean;
+
+  @Prop({ type: Boolean, default: false, index: true })
+  deletedByTalent: boolean;
+
+  @Prop({ type: Number, min: 0, max: 100, index: true })
+  aiScore?: number;
+
+  @Prop({ type: Date })
+  aiScoreComputedAt?: Date;
 }
 
 export type ProposalDocument = Proposal & Document;

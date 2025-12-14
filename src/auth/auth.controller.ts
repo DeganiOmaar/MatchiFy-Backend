@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyResetCodeDto } from './dto/verify-reset-code.dto';
@@ -7,13 +7,14 @@ import { LoginDto } from './dto/login.dto';
 import { TalentSignupDto } from './dto/talent-signup.dto';
 import { RecruiterSignupDto } from './dto/recruiter-signup.dto';
 import { AuthService } from './auth.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
 
 
-     constructor(private authService: AuthService) {}
+     constructor(private readonly authService: AuthService) {}
 
   @Post('signup/talent')
   @ApiOperation({ 
@@ -203,5 +204,32 @@ export class AuthController {
   })
   resetPasswordNew(@Body() dto: ResetPasswordNewDto) {
     return this.authService.resetPasswordNew(dto);
+  }
+
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ 
+    summary: 'User logout',
+    description: 'Logout the current user. Clears server-side session state if any.'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Logout successful',
+    schema: {
+      example: {
+        message: 'Logout successful',
+        success: true
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: 'Unauthorized - Invalid or missing token'
+  })
+  logout(@Request() req) {
+    // req.user is populated by JwtAuthGuard from the JWT token
+    const userId = req.user?.id;
+    return this.authService.logout(userId);
   }
 }

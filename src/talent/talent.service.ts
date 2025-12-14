@@ -7,12 +7,16 @@ import {
 import { UserService } from '../user/user.service';
 import { SkillService } from '../skill/skill.service';
 import { UpdateTalentProfileDto } from './dto/update-talent-profile.dto';
+import { ProposalsService } from '../proposals/proposals.service';
+import { TalentStatsDto } from './dto/talent-stats.dto';
+import { ProposalStatus } from '../proposals/schemas/proposal.schema';
 
 @Injectable()
 export class TalentService {
   constructor(
     private readonly userService: UserService,
     private readonly skillService: SkillService,
+    private readonly proposalsService: ProposalsService,
   ) {}
 
   /**
@@ -122,18 +126,6 @@ export class TalentService {
       updateData.skills = skillIds;
     }
 
-    if (updateDto.portfolioLink !== undefined) {
-      // Validate URL if provided and not empty
-      if (updateDto.portfolioLink && updateDto.portfolioLink.trim() !== '') {
-        try {
-          new URL(updateDto.portfolioLink);
-        } catch {
-          throw new BadRequestException('Please provide a valid URL for portfolio link');
-        }
-      }
-      updateData.portfolioLink = updateDto.portfolioLink;
-    }
-
     // If profile image was uploaded, add the path
     if (profileImagePath) {
       updateData.profileImage = profileImagePath;
@@ -178,5 +170,74 @@ export class TalentService {
     await this.userService.save(user);
 
     return { message: 'Banner updated', bannerImage: bannerUrl };
+  }
+
+  // 📄 Mettre à jour le CV
+  async updateCvUrl(userId: string, cvUrl: string) {
+    const user = await this.userService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('Talent not found');
+    }
+
+    // Verify user is a talent
+    if (user.role !== 'talent') {
+      throw new ForbiddenException('Only talents can upload CV');
+    }
+
+    user.cvUrl = cvUrl;
+    await this.userService.save(user);
+
+    // Return updated user without password
+    const { password, ...userWithoutPassword } = user.toObject();
+    return {
+      message: 'CV uploaded successfully',
+      cvUrl: cvUrl,
+      user: userWithoutPassword,
+    };
+  }
+
+  /**
+   * Get talent stats for proposals
+   * Returns aggregated proposal statistics for a given date range
+   */
+  async getStats(userId: string, days: number): Promise<TalentStatsDto> {
+    // Find the user
+    const user = await this.userService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Verify user is a talent
+    if (user.role !== 'talent') {
+      throw new ForbiddenException('Only talents can access this endpoint');
+    }
+
+    // Calculate date range
+    const toDate = new Date();
+    const fromDate = new Date();
+    fromDate.setDate(fromDate.getDate() - days);
+
+    // Get all proposals for this talent in the date range
+    // Using the same filters as findByTalent (not archived by recruiter, not deleted by talent)
+    const proposals = await this.proposalsService.findByTalentForStats(
+      userId,
+      fromDate,
+      toDate,
+    );
+
+    // Count proposals by status
+    const totalProposalsSent = proposals.length;
+    const totalProposalsAccepted = proposals.filter(
+      (p) => p.status === ProposalStatus.ACCEPTED,
+    ).length;
+    const totalProposalsRefused = proposals.filter(
+      (p) => p.status === ProposalStatus.REFUSED,
+    ).length;
+
+    return {
+      totalProposalsSent,
+      totalProposalsAccepted,
+      totalProposalsRefused,
+    };
   }
 }

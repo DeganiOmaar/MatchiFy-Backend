@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { ProposalStatus } from '../schemas/proposal.schema';
 
 export class UpdateProposalStatusDto {
@@ -10,5 +10,13 @@ export class UpdateProposalStatusDto {
   })
   @IsEnum(ProposalStatus)
   status: ProposalStatus;
+
+  @ApiProperty({
+    description: 'Reason for rejection (required if status is REFUSED)',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  rejectionReason?: string;
 }
 

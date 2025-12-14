@@ -6,11 +6,12 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { MissionsService } from 'src/missions/missions.service';
-import { UserService } from 'src/user/user.service';
-import { ConversationsService } from 'src/conversations/conversations.service';
-import { AlertsService } from 'src/alerts/alerts.service';
-import { AlertType } from 'src/alerts/schemas/alert.schema';
+import { MissionsService } from '../missions/missions.service';
+import { UserService } from '../user/user.service';
+import { ConversationsService } from '../conversations/conversations.service';
+import { AlertsService } from '../alerts/alerts.service';
+import { AlertType } from '../alerts/schemas/alert.schema';
+import { AiProposalMatchService } from '../ai/services/ai-proposal-match.service';
 import {
   Proposal,
   ProposalDocument,
@@ -32,7 +33,8 @@ export class ProposalsService {
     private readonly missionsService: MissionsService,
     private readonly userService: UserService,
     private readonly conversationsService: ConversationsService,
-    private readonly alertsService: AlertsService
+    private readonly alertsService: AlertsService,
+    private readonly aiProposalMatchService: AiProposalMatchService,
   ) {}
 
   async create(
@@ -72,6 +74,14 @@ export class ProposalsService {
     const recruiter = await this.userService.findById(recruiterId);
     const recruiterName = recruiter?.fullName || 'Recruiter';
 
+    // Validate proposalContent length (additional check beyond DTO validation)
+    const proposalContent = createProposalDto.proposalContent?.trim() || '';
+    if (proposalContent.length < 200) {
+      throw new BadRequestException(
+        'Proposal content must be at least 200 characters long'
+      );
+    }
+
     const proposal = new this.proposalModel({
       missionId: createProposalDto.missionId,
       missionTitle: mission.title,
@@ -79,7 +89,8 @@ export class ProposalsService {
       recruiterName,
       talentId: talent.id,
       talentName: talent.fullName,
-      message: createProposalDto.message,
+      message: createProposalDto.message || '',
+      proposalContent: proposalContent,
       proposedBudget: createProposalDto.proposedBudget,
       estimatedDuration: createProposalDto.estimatedDuration,
       status: ProposalStatus.NOT_VIEWED,
@@ -124,12 +135,15 @@ export class ProposalsService {
 
   async findByTalent(
     talentId: string,
-    filters?: { missionId?: string; archived?: boolean }
+    filters?: { status?: string; archived?: boolean }
   ): Promise<any[]> {
-    const query: any = { talentId };
+    const query: any = { 
+      talentId,
+      deletedByTalent: { $ne: true }
+    };
     
-    if (filters?.missionId) {
-      query.missionId = filters.missionId;
+    if (filters?.status) {
+      query.status = filters.status;
     }
     
     if (filters?.archived !== undefined) {
@@ -157,6 +171,35 @@ export class ProposalsService {
         };
       })
     );
+  }
+
+  /**
+   * Find proposals by talent for stats calculation
+   * Returns proposals within a date range, excluding archived and deleted ones
+   */
+  async findByTalentForStats(
+    talentId: string,
+    fromDate: Date,
+    toDate: Date
+  ): Promise<any[]> {
+    const query: any = {
+      talentId,
+      deletedByTalent: { $ne: true },
+      createdAt: {
+        $gte: fromDate,
+        $lte: toDate,
+      },
+    };
+
+    // Exclude proposals archived by recruiter (we want all proposals for stats)
+    // But we still exclude those deleted by talent
+    
+    const proposals = await this.proposalModel
+      .find(query)
+      .lean()
+      .exec();
+
+    return proposals;
   }
 
   async findByRecruiter(
@@ -244,6 +287,30 @@ export class ProposalsService {
     }).exec();
   }
 
+  async getUnviewedCountsByMissionIds(missionIds: string[]): Promise<{ [key: string]: number }> {
+    const counts = await this.proposalModel.aggregate([
+      {
+        $match: {
+          missionId: { $in: missionIds },
+          status: ProposalStatus.NOT_VIEWED,
+        },
+      },
+      {
+        $group: {
+          _id: '$missionId',
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const result: { [key: string]: number } = {};
+    counts.forEach((item) => {
+      result[item._id] = item.count;
+    });
+    
+    return result;
+  }
+
   async findOne(
     proposalId: string,
     userId: string,
@@ -296,6 +363,15 @@ export class ProposalsService {
     }
 
     const previousStatus = proposal.status;
+    
+    // Validate rejection reason
+    if (updateProposalStatusDto.status === ProposalStatus.REFUSED) {
+      if (!updateProposalStatusDto.rejectionReason || updateProposalStatusDto.rejectionReason.trim() === '') {
+        throw new BadRequestException('Rejection reason is required when refusing a proposal');
+      }
+      proposal.rejectionReason = updateProposalStatusDto.rejectionReason;
+    }
+
     proposal.status = updateProposalStatusDto.status;
     const saved = await proposal.save();
 
@@ -346,7 +422,7 @@ export class ProposalsService {
           missionId: proposal.missionId,
           proposalId: (proposal._id as any).toString(),
           title: `Your proposal for ${missionTitle} has been refused`,
-          message: `Your proposal for "${missionTitle}" has been refused by ${recruiterName}.`,
+          message: `Your proposal for "${missionTitle}" has been refused by ${recruiterName}. Reason: ${updateProposalStatusDto.rejectionReason}`,
           recruiterId: recruiterId,
           recruiterName: recruiterName,
           recruiterProfileImage: recruiter?.profileImage,
@@ -386,17 +462,6 @@ export class ProposalsService {
       );
     }
 
-    // Check if proposal can be archived
-    const mission = await this.missionsService.findOne(proposal.missionId);
-    const canArchive =
-      mission.status === 'completed' || proposal.status === ProposalStatus.REFUSED;
-
-    if (!canArchive) {
-      throw new BadRequestException(
-        'Proposal can only be archived if mission is completed or proposal was refused'
-      );
-    }
-
     proposal.archived = true;
     const saved = await proposal.save();
 
@@ -410,6 +475,165 @@ export class ProposalsService {
           }
         : null,
     };
+  }
+
+  async deleteProposal(
+    proposalId: string,
+    talentId: string
+  ): Promise<any> {
+    const proposal = await this.proposalModel.findById(proposalId).exec();
+    if (!proposal) {
+      throw new NotFoundException(`Proposal ${proposalId} not found`);
+    }
+
+    if (proposal.talentId !== talentId) {
+      throw new ForbiddenException(
+        'You do not have permission to delete this proposal'
+      );
+    }
+
+    // Soft delete: mark as deleted by talent, but keep it visible for recruiter
+    proposal.deletedByTalent = true;
+    const saved = await proposal.save();
+
+    const talent = await this.userService.findById(proposal.talentId);
+    return {
+      ...saved.toObject(),
+      talent: talent
+        ? {
+            fullName: talent.fullName,
+            email: talent.email,
+          }
+        : null,
+    };
+  }
+
+  /**
+   * Find proposals for a specific mission with optional AI sorting
+   * @param recruiterId - ID of the recruiter (must own the mission)
+   * @param missionId - ID of the mission
+   * @param useAiSort - Whether to sort by AI compatibility score
+   * @returns Proposals sorted by AI score (if enabled) or creation date
+   */
+  async findByMissionWithAiSort(
+    recruiterId: string,
+    missionId: string,
+    useAiSort: boolean = false,
+  ): Promise<any> {
+    // Verify mission ownership
+    const mission = await this.missionsService.findOne(missionId);
+    if (!mission) {
+      throw new NotFoundException(`Mission ${missionId} not found`);
+    }
+
+    if (mission.recruiterId.toString() !== recruiterId) {
+      throw new ForbiddenException(
+        'You do not have permission to view proposals for this mission'
+      );
+    }
+
+    // Get all proposals for this mission
+    const proposals = await this.proposalModel
+      .find({ missionId, recruiterId })
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec();
+
+    // Populate talent information
+    const proposalsWithTalent = await Promise.all(
+      proposals.map(async (proposal) => {
+        const talent = await this.userService.findById(proposal.talentId);
+        return {
+          ...proposal,
+          talent: talent
+            ? {
+                fullName: talent.fullName,
+                email: talent.email,
+                skills: talent.skills,
+                mainTalent: talent.talent,
+              }
+            : null,
+        };
+      })
+    );
+
+    // If AI sort is requested, score and sort proposals
+    if (useAiSort) {
+      const scoredProposals = await this.aiProposalMatchService.scoreProposalsForMission(
+        missionId,
+        proposalsWithTalent,
+      );
+
+      return {
+        mission: mission,
+        proposals: scoredProposals,
+      };
+    }
+
+    // Return proposals in chronological order
+    return {
+      mission: mission,
+      proposals: proposalsWithTalent.map(p => ({ ...p, aiScore: null })),
+    };
+  }
+
+  /**
+   * Search proposals by mission title
+   * @param recruiterId - ID of the recruiter
+   * @param titleQuery - Search query for mission title
+   * @returns Missions matching the title with their proposals
+   */
+  async findByMissionTitle(
+    recruiterId: string,
+    titleQuery: string,
+  ): Promise<any[]> {
+    if (!titleQuery || titleQuery.trim().length === 0) {
+      return [];
+    }
+
+    // Find all missions by this recruiter matching the title
+    const missions = await this.missionsService.findAllByRecruiter(recruiterId);
+    
+    // Filter missions by title (case-insensitive partial match)
+    const matchingMissions = missions.filter((mission: any) =>
+      mission.title?.toLowerCase().includes(titleQuery.toLowerCase())
+    );
+
+    // For each matching mission, get its proposals
+    const results = await Promise.all(
+      matchingMissions.map(async (mission: any) => {
+        const proposals = await this.proposalModel
+          .find({ missionId: mission._id.toString(), recruiterId })
+          .sort({ createdAt: -1 })
+          .lean()
+          .exec();
+
+        // Populate talent information
+        const proposalsWithTalent = await Promise.all(
+          proposals.map(async (proposal) => {
+            const talent = await this.userService.findById(proposal.talentId);
+            return {
+              ...proposal,
+              talent: talent
+                ? {
+                    fullName: talent.fullName,
+                    email: talent.email,
+                  }
+                : null,
+            };
+          })
+        );
+
+        return {
+          mission: mission,
+          proposalCount: proposals.length,
+          proposals: proposalsWithTalent,
+        };
+      })
+    );
+
+    // Filter out missions with no proposals (optional)
+    return results.filter(r => r.proposalCount > 0);
   }
 }
 

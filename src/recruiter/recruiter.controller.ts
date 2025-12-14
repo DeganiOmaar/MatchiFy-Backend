@@ -7,6 +7,8 @@ import {
   Request,
   UseInterceptors,
   UploadedFile,
+  Param,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -23,12 +25,16 @@ import { Roles } from '../auth/roles.decorator';
 import { RecruiterService } from './recruiter.service';
 import { UpdateRecruiterProfileDto } from './dto/update-recruiter-profile.dto';
 import { profileImageUploadOptions } from '../common/utils/file-upload.config';
+import { ProposalsService } from '../proposals/proposals.service';
 
 @ApiTags('recruiter')
 @Controller('recruiter')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class RecruiterController {
-  constructor(private readonly recruiterService: RecruiterService) {}
+  constructor(
+    private readonly recruiterService: RecruiterService,
+    private readonly proposalsService: ProposalsService,
+  ) {}
 
   @Get('profile')
   @Roles('recruiter')
@@ -199,5 +205,157 @@ export class RecruiterController {
       updateDto,
       profileImagePath
     );
+  }
+
+  @Get('missions')
+  @Roles('recruiter')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get recruiter missions',
+    description:
+      'Retrieves all missions created by the authenticated recruiter. Returns simplified mission list with ID and title for mission selector.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Missions retrieved successfully',
+    schema: {
+      example: [
+        {
+          _id: '673ab2c3e8f9a1234567890a',
+          title: 'Full Stack Developer Needed',
+          createdAt: '2025-11-20T10:00:00.000Z',
+          unviewedCount: 2,
+        },
+        {
+          _id: '673ab2c3e8f9a1234567890b',
+          title: 'Senior React Developer',
+          createdAt: '2025-11-21T14:30:00.000Z',
+          unviewedCount: 0,
+        },
+      ],
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing JWT token',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - User is not a recruiter',
+  })
+  async getRecruiterMissions(@Request() req: any) {
+    const recruiterId = req.user.id;
+    return this.recruiterService.getRecruiterMissions(recruiterId);
+  }
+
+  @Get('proposals/mission/:missionId')
+  @Roles('recruiter')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get proposals for a mission with optional AI sorting',
+    description:
+      'Retrieves all proposals for a specific mission. When sort=ai query parameter is provided, proposals are sorted by AI compatibility score (highest first). Otherwise, sorted by creation date (newest first).',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Proposals retrieved successfully',
+    schema: {
+      example: {
+        mission: {
+          _id: '673ab2c3e8f9a1234567890a',
+          title: 'Full Stack Developer Needed',
+          description: 'Looking for an experienced developer...',
+          skills: ['React', 'Node.js', 'MongoDB'],
+          budget: 5000,
+          duration: '3 months',
+        },
+        proposals: [
+          {
+            _id: '673ab2c3e8f9a1234567890c',
+            missionId: '673ab2c3e8f9a1234567890a',
+            talentId: '673ab2c3e8f9a1234567890d',
+            message: 'I am interested in this project',
+            proposalContent: 'Detailed proposal content...',
+            status: 'NOT_VIEWED',
+            aiScore: 85,
+            talent: {
+              fullName: 'John Doe',
+              email: 'john@example.com',
+              skills: ['React', 'Node.js'],
+              mainTalent: 'Full Stack Developer',
+            },
+          },
+        ],
+      },
+    },
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Recruiter does not own this mission',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Not Found - Mission does not exist',
+  })
+  async getProposalsForMission(
+    @Request() req: any,
+    @Param('missionId') missionId: string,
+    @Query('sort') sort?: string,
+  ) {
+    const recruiterId = req.user.id;
+    const useAiSort = sort === 'ai';
+    return this.proposalsService.findByMissionWithAiSort(
+      recruiterId,
+      missionId,
+      useAiSort,
+    );
+  }
+
+  @Get('proposals')
+  @Roles('recruiter')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Search proposals by mission title',
+    description:
+      'Searches for missions by title (case-insensitive partial match) and returns proposals for matching missions. Only searches missions created by the authenticated recruiter.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Search results retrieved successfully',
+    schema: {
+      example: [
+        {
+          mission: {
+            _id: '673ab2c3e8f9a1234567890a',
+            title: 'Full Stack Developer Needed',
+            description: 'Looking for an experienced developer...',
+          },
+          proposalCount: 3,
+          proposals: [
+            {
+              _id: '673ab2c3e8f9a1234567890c',
+              missionId: '673ab2c3e8f9a1234567890a',
+              talentId: '673ab2c3e8f9a1234567890d',
+              message: 'I am interested',
+              status: 'NOT_VIEWED',
+              talent: {
+                fullName: 'John Doe',
+                email: 'john@example.com',
+              },
+            },
+          ],
+        },
+      ],
+    },
+  })
+  async searchProposalsByMissionTitle(
+    @Request() req: any,
+    @Query('title') title?: string,
+  ) {
+    const recruiterId = req.user.id;
+    if (!title) {
+      return [];
+    }
+    return this.proposalsService.findByMissionTitle(recruiterId, title);
   }
 }
