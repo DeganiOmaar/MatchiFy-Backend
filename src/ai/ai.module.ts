@@ -20,6 +20,7 @@ import { MissionFitAnalyzerService } from './services/mission-fit-analyzer.servi
 import { ProposalGeneratorService } from './services/proposal-generator.service';
 import { AiProposalMatchService } from './services/ai-proposal-match.service';
 import { Proposal, ProposalSchema } from '../proposals/schemas/proposal.schema';
+import { TalentFilterService } from './services/talent-filter.service';
 
 @Module({
   imports: [
@@ -43,8 +44,15 @@ import { Proposal, ProposalSchema } from '../proposals/schemas/proposal.schema';
     MissionFitAnalyzerService,
     ProposalGeneratorService,
     AiProposalMatchService,
+    TalentFilterService,
   ],
-  exports: [AiService, AiProfileAnalyzerService, ProfileAnalysisService, AiProposalMatchService],
+  exports: [
+    AiService,
+    AiProfileAnalyzerService,
+    ProfileAnalysisService,
+    AiProposalMatchService,
+    TalentFilterService,
+  ],
 })
 export class AiModule {}
 

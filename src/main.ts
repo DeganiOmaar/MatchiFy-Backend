@@ -14,7 +14,7 @@ async function bootstrap() {
   app.useStaticAssets(join(process.cwd(), 'uploads'), {
     prefix: '/uploads/',
   });
-  
+
   console.log('📁 Serving static files from:', join(process.cwd(), 'uploads'));
 
   // Enable CORS

@@ -21,6 +21,42 @@ constructor(@InjectModel(User.name) private userModel: Model<User>) {}
     return this.userModel.findById(id);
   }
 
+  /**
+   * Retourne une liste paginée de talents pour l'endpoint public /users/talents.
+   * - Filtre sur role = "talent"
+   * - Exclut le mot de passe
+   * - Trie par createdAt décroissant (plus récents en premier)
+   */
+  async getAllTalents(
+    limit?: number,
+    page?: number,
+  ): Promise<User[]> {
+    const query = { role: 'talent' };
+
+    const mongoQuery = this.userModel
+      .find(query)
+      .select('-password')
+      .sort({ createdAt: -1 });
+
+    if (limit && limit > 0) {
+      mongoQuery.limit(limit);
+      if (page && page > 0) {
+        const skip = (page - 1) * limit;
+        mongoQuery.skip(skip);
+      }
+    }
+
+    return mongoQuery.exec();
+  }
+
+  /**
+   * Retourne tous les utilisateurs avec le rôle "talent".
+   * Utilisé par les services IA pour filtrer / scorer les talents.
+   */
+  async findAllTalents(): Promise<User[]> {
+    return this.userModel.find({ role: 'talent' }).exec();
+  }
+
   async save(user: User): Promise<User> {
     return user.save();
   }

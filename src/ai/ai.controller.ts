@@ -9,6 +9,9 @@ import {
   Logger,
   Sse,
   MessageEvent,
+  Param,
+  Body,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -25,8 +28,11 @@ import { ProfileAnalysisService } from './services/profile-analysis.service';
 import { MissionFitAnalyzerService } from './services/mission-fit-analyzer.service';
 import { MissionFitResponseDto } from './dto/mission-fit-response.dto';
 import { ProposalGeneratorService } from './services/proposal-generator.service';
-import { GenerateProposalDto, GenerateProposalResponseDto } from './dto/generate-proposal.dto';
-import { Param, Body } from '@nestjs/common';
+import {
+  GenerateProposalDto,
+  GenerateProposalResponseDto,
+} from './dto/generate-proposal.dto';
+import { TalentFilterService } from './services/talent-filter.service';
 
 // Simple in-memory rate limiting
 // In production, use Redis or a proper rate limiting library
@@ -50,6 +56,7 @@ export class AiController {
     private readonly profileAnalysisService: ProfileAnalysisService,
     private readonly missionFitAnalyzerService: MissionFitAnalyzerService,
     private readonly proposalGeneratorService: ProposalGeneratorService,
+    private readonly talentFilterService: TalentFilterService,
   ) {
     // Clean up old rate limit entries every hour
     setInterval(() => this.cleanupRateLimit(), 60 * 60 * 1000);
@@ -262,6 +269,51 @@ export class AiController {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  @Get('mission/:missionId/talents')
+  @Roles('recruiter')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get AI-ranked talents for a mission',
+    description:
+      'Retourne une liste de talents classés par score de compatibilité avec une mission donnée, en utilisant un modèle simple basé sur la similarité des compétences et un proxy d’expérience.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Talents ranked successfully',
+    schema: {
+      example: [
+        {
+          talentId: '673ab2c3e8f9a1234567890d',
+          fullName: 'John Doe',
+          score: 87,
+          skillMatch: 0.9,
+          experienceMatch: 0.8,
+          matchingSkills: ['React', 'Node.js', 'TypeScript'],
+          missionSkills: ['React', 'Node.js', 'TypeScript', 'MongoDB'],
+        },
+      ],
+    },
+  })
+  async getRankedTalentsForMission(
+    @Param('missionId') missionId: string,
+    @Query('limit') limit?: string,
+    @Query('minScore') minScore?: string,
+  ) {
+    const parsedLimit =
+      typeof limit === 'string' && !isNaN(parseInt(limit, 10))
+        ? parseInt(limit, 10)
+        : 50;
+    const parsedMinScore =
+      typeof minScore === 'string' && !isNaN(parseInt(minScore, 10))
+        ? parseInt(minScore, 10)
+        : 0;
+
+    return this.talentFilterService.rankTalentsForMission(missionId, {
+      limit: parsedLimit,
+      minScore: parsedMinScore,
+    });
   }
 
   @Post('proposals/generate')

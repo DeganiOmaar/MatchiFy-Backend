@@ -13,6 +13,8 @@ import { MissionsService } from '../../missions/missions.service';
 import { ProfileAnalysisService } from './profile-analysis.service';
 import { Proposal, ProposalDocument } from '../../proposals/schemas/proposal.schema';
 import * as crypto from 'crypto';
+import { SkillService } from '../../skill/skill.service';
+import { getNormalizedWeights } from '../constants/model-weights';
 
 interface ProposalMatchScore {
   proposalId: string;
@@ -26,6 +28,15 @@ interface FallbackScoreResult {
   usedFallback: true;
 }
 
+interface SkillLike {
+  _id?: any;
+  id?: any;
+  name: string;
+}
+
+// Permet d'invalider les anciens scores mis en cache (DB + mémoire)
+const SCORING_VERSION = 2;
+
 @Injectable()
 export class AiProposalMatchService {
   private readonly logger = new Logger(AiProposalMatchService.name);
@@ -38,6 +49,7 @@ export class AiProposalMatchService {
     @Inject(forwardRef(() => MissionsService))
     private readonly missionsService: MissionsService,
     private readonly profileAnalysisService: ProfileAnalysisService,
+    private readonly skillService: SkillService,
     @InjectModel(Proposal.name)
     private readonly proposalModel: Model<ProposalDocument>,
   ) {}
@@ -65,7 +77,8 @@ export class AiProposalMatchService {
     if (
       proposal?.aiScore !== undefined &&
       proposal.aiScoreComputedAt &&
-      this.isCacheValid(proposal.aiScoreComputedAt)
+      this.isCacheValid(proposal.aiScoreComputedAt) &&
+      (proposal as any).aiScoreVersion === SCORING_VERSION
     ) {
       this.logger.debug(`Using DB cached score for proposal ${proposalId}`);
       const score = proposal.aiScore;
@@ -94,6 +107,7 @@ export class AiProposalMatchService {
       await this.proposalModel.findByIdAndUpdate(proposalId, {
         aiScore: score,
         aiScoreComputedAt: new Date(),
+        aiScoreVersion: SCORING_VERSION,
       });
 
       return score;
@@ -293,28 +307,131 @@ export class AiProposalMatchService {
       return { score: 50, usedFallback: true }; // Default middle score
     }
 
-    const missionSkills = mission.skills || [];
-    const talentSkills = talent.skills || [];
+    const requiredSkills: string[] = Array.isArray(mission.skills)
+      ? mission.skills
+      : [];
 
-    if (missionSkills.length === 0) {
-      return { score: 60, usedFallback: true }; // Slightly above average if no skills required
+    const optionalSkills: string[] = Array.isArray(
+      (mission as any).optionalSkills,
+    )
+      ? ((mission as any).optionalSkills as string[])
+      : [];
+
+    // talent.skills contient des IDs de Skill -> charger les noms réels
+    const talentSkillIds: string[] = Array.isArray(talent.skills)
+      ? (talent.skills as string[])
+      : [];
+
+    let talentSkillNames: string[] = [];
+    if (talentSkillIds.length > 0) {
+      const skillDocs = (await this.skillService.findByIds(
+        talentSkillIds,
+      )) as SkillLike[];
+      talentSkillNames = skillDocs
+        .map((s) => s.name)
+        .filter((name) => typeof name === 'string' && !!name);
     }
 
-    // Calculate skill overlap
-    const matchingSkills = talentSkills.filter((skill: string) =>
-      missionSkills.some((mSkill: string) =>
-        skill.toLowerCase().includes(mSkill.toLowerCase()) ||
-        mSkill.toLowerCase().includes(skill.toLowerCase())
-      )
+    // 1) Similarité de compétences (0-1)
+    const normalizedRequiredSkills = requiredSkills.map((s) =>
+      (s || '').toString().toLowerCase().trim(),
     );
 
-    const overlapRatio = matchingSkills.length / missionSkills.length;
-    
-    // Convert to 0-100 scale with some base score
-    const baseScore = 30; // Minimum score for submitting a proposal
-    const skillScore = Math.round(baseScore + (overlapRatio * 70));
+    const normalizedOptionalSkills = optionalSkills.map((s) =>
+      (s || '').toString().toLowerCase().trim(),
+    );
+    const normalizedTalentSkills = talentSkillNames.map((s) =>
+      (s || '').toString().toLowerCase().trim(),
+    );
 
-    return { score: Math.min(100, Math.max(0, skillScore)), usedFallback: true };
+    const missionRequiredSet = new Set(
+      normalizedRequiredSkills.filter((s) => !!s),
+    );
+    const missionOptionalSet = new Set(
+      normalizedOptionalSkills.filter((s) => !!s),
+    );
+    const talentSet = new Set(
+      normalizedTalentSkills.filter((s) => !!s),
+    );
+
+    let requiredMatching = 0;
+    for (const mSkill of missionRequiredSet) {
+      for (const tSkill of talentSet) {
+        if (mSkill === tSkill || mSkill.includes(tSkill) || tSkill.includes(mSkill)) {
+          requiredMatching++;
+          break;
+        }
+      }
+    }
+
+    let optionalMatching = 0;
+    for (const mSkill of missionOptionalSet) {
+      for (const tSkill of talentSet) {
+        if (mSkill === tSkill || mSkill.includes(tSkill) || tSkill.includes(mSkill)) {
+          optionalMatching++;
+          break;
+        }
+      }
+    }
+
+    const requiredMatch =
+      missionRequiredSet.size === 0
+        ? 0.5
+        : requiredMatching / missionRequiredSet.size;
+
+    const optionalMatch =
+      missionOptionalSet.size === 0
+        ? 0
+        : optionalMatching / missionOptionalSet.size;
+
+    // 2) Proxy d'expérience basé sur nb de skills + CV
+    const experienceMatch = this.estimateTalentExperienceScore(talent);
+
+    // 3) Score final pondéré (0-100) avec MODEL_KEY
+    const weights = getNormalizedWeights();
+    const score01 =
+      weights.requiredSkillsWeight *
+        Math.max(0, Math.min(1, requiredMatch)) +
+      weights.optionalSkillsWeight *
+        Math.max(0, Math.min(1, optionalMatch)) +
+      weights.experienceWeight *
+        Math.max(0, Math.min(1, experienceMatch));
+
+    const finalScore = 100 * Math.max(0, Math.min(1, score01));
+
+    return {
+      score: Math.max(0, Math.min(100, Math.round(finalScore))),
+      usedFallback: true,
+    };
+  }
+
+  /**
+   * Estime l'expérience d'un talent à partir de signaux simples :
+   *  - nombre de skills
+   *  - présence d'un CV
+   */
+  private estimateTalentExperienceScore(talent: any): number {
+    let score = 0.2;
+
+    const skillsCount = Array.isArray(talent.skills)
+      ? (talent.skills as any[]).length
+      : 0;
+
+    if (skillsCount >= 10) {
+      score += 0.5;
+    } else if (skillsCount >= 5) {
+      score += 0.35;
+    } else if (skillsCount >= 2) {
+      score += 0.2;
+    } else if (skillsCount > 0) {
+      score += 0.1;
+    }
+
+    if (talent.cvUrl) {
+      score += 0.1;
+    }
+
+    return Math.max(0, Math.min(1, score));
   }
 
   /**
