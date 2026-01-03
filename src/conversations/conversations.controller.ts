@@ -5,9 +5,14 @@ import {
   Get,
   Param,
   Post,
+  Patch,
   Request,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { portfolioMediaUploadOptions } from 'src/common/utils/file-upload.config';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/roles.guard';
@@ -21,7 +26,7 @@ import { CreateConversationDto } from './dto/create-conversation.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('conversations')
 export class ConversationsController {
-  constructor(private readonly conversationsService: ConversationsService) {}
+  constructor(private readonly conversationsService: ConversationsService) { }
 
   @Get()
   @Roles('talent', 'recruiter')
@@ -52,6 +57,7 @@ export class ConversationsController {
   @Get(':id/messages')
   @Roles('talent', 'recruiter')
   async getMessages(@Param('id') id: string, @Request() req: any) {
+    console.log(`[ConversationsController.getMessages] Request received for ConvID: ${id}, User: ${req.user.id}, Role: ${req.user.role}`);
     return this.conversationsService.getMessages(id, req.user.id, req.user.role);
   }
 
@@ -115,5 +121,53 @@ export class ConversationsController {
       req.user.role
     );
   }
-}
 
+  @Post(':id/deliverables')
+  @UseInterceptors(FileInterceptor('file', portfolioMediaUploadOptions))
+  @Roles('talent')
+  async uploadDeliverable(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Request() req: any
+  ) {
+    return this.conversationsService.uploadDeliverable(
+      id,
+      file,
+      req.user.id,
+      req.user.role
+    );
+  }
+
+  @Patch('deliverables/:id/status')
+  @Roles('recruiter')
+  async updateDeliverableStatus(
+    @Param('id') id: string,
+    @Body('status') status: 'approved' | 'rejected' | 'revision_requested',
+    @Body('reason') reason: string,
+    @Request() req: any
+  ) {
+    return this.conversationsService.updateDeliverableStatus(
+      id,
+      status,
+      req.user.id,
+      req.user.role,
+      reason
+    );
+  }
+
+  @Post(':id/deliverables/link')
+  @Roles('talent')
+  async submitLink(
+    @Param('id') id: string,
+    @Body() dto: { url: string; title?: string },
+    @Request() req: any
+  ) {
+    return this.conversationsService.submitLink(
+      id,
+      dto.url,
+      dto.title,
+      req.user.id,
+      req.user.role
+    );
+  }
+}

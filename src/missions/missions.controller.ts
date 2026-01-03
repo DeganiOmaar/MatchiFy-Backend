@@ -42,7 +42,7 @@ export class MissionsController {
     private readonly bestMatchService: BestMatchService,
     @Inject(forwardRef(() => ProposalsService))
     private readonly proposalsService: ProposalsService
-  ) {}
+  ) { }
 
   @Post()
   @Roles('recruiter', 'talent')
@@ -374,7 +374,7 @@ export class MissionsController {
   async findOne(@Param('id') id: string, @Request() req: any) {
     const talentId = req.user.role === 'talent' ? req.user.id : undefined;
     const mission = await this.missionsService.findOne(id, talentId);
-    
+
     // Add hasApplied field for talents
     if (req.user.role === 'talent') {
       const hasApplied = await this.proposalsService.hasTalentApplied(
@@ -383,7 +383,7 @@ export class MissionsController {
       );
       return { ...mission, hasApplied };
     }
-    
+
     return mission;
   }
 
@@ -561,6 +561,99 @@ export class MissionsController {
   async remove(@Param('id') id: string, @Request() req: any) {
     const recruiterId = req.user.id;
     return this.missionsService.remove(id, recruiterId);
+  }
+
+  @Post(':id/complete')
+  @Roles('talent')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Mark mission as completed (Talent)',
+    description:
+      'Allows talent to mark a mission as completed after finishing the work. This notifies the recruiter for approval.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Mission ID',
+    example: '673ab2c3e8f9a1234567890c',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Mission marked as completed',
+    schema: {
+      example: {
+        _id: '673ab2c3e8f9a1234567890c',
+        status: 'completed',
+        completedAt: '2025-12-14T15:00:00.000Z',
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Not a talent' })
+  @ApiResponse({ status: 404, description: 'Mission not found' })
+  async markAsCompleted(@Param('id') id: string, @Request() req: any) {
+    const talentId = req.user.id;
+    return this.missionsService.markAsCompleted(id, talentId);
+  }
+
+  @Post(':id/approve-completion')
+  @Roles('recruiter')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Approve mission completion and trigger payment (Recruiter)',
+    description:
+      'Allows recruiter to approve mission completion and automatically process payment to talent.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Mission ID',
+    example: '673ab2c3e8f9a1234567890c',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        paymentMethodId: {
+          type: 'string',
+          description: 'Optional payment method ID (uses default if not provided)',
+          example: 'pm_1234567890',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Mission completion approved and payment processed',
+    schema: {
+      example: {
+        mission: {
+          _id: '673ab2c3e8f9a1234567890c',
+          status: 'paid',
+          paymentStatus: 'completed',
+        },
+        transaction: {
+          _id: '673ab2c3e8f9a1234567890d',
+          amount: 1000,
+          platformFee: 30,
+          talentAmount: 970,
+          status: 'completed',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Not the mission owner' })
+  @ApiResponse({ status: 404, description: 'Mission not found' })
+  async approveCompletion(
+    @Param('id') id: string,
+    @Request() req: any,
+    @Body() body: { paymentMethodId?: string },
+  ) {
+    const recruiterId = req.user.id;
+    return this.missionsService.approveCompletion(
+      id,
+      recruiterId,
+      body.paymentMethodId,
+    );
   }
 }
 

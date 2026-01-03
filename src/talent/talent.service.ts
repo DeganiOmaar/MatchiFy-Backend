@@ -10,14 +10,20 @@ import { UpdateTalentProfileDto } from './dto/update-talent-profile.dto';
 import { ProposalsService } from '../proposals/proposals.service';
 import { TalentStatsDto } from './dto/talent-stats.dto';
 import { ProposalStatus } from '../proposals/schemas/proposal.schema';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { PaymentTransaction, PaymentTransactionDocument, TransactionStatus } from '../payment/schemas/payment-transaction.schema';
 
 @Injectable()
 export class TalentService {
   constructor(
     private readonly userService: UserService,
     private readonly skillService: SkillService,
+
     private readonly proposalsService: ProposalsService,
-  ) {}
+    @InjectModel(PaymentTransaction.name)
+    private paymentTransactionModel: Model<PaymentTransactionDocument>,
+  ) { }
 
   /**
    * Get talent profile
@@ -234,10 +240,26 @@ export class TalentService {
       (p) => p.status === ProposalStatus.REFUSED,
     ).length;
 
+
+
+    // Calculate total earnings for the period
+    const earningsTransactions = await this.paymentTransactionModel.find({
+      talentId: userId,
+      status: TransactionStatus.COMPLETED,
+      // Consider using completedAt for more accurate earnings in period
+      completedAt: { $gte: fromDate, $lte: toDate }
+    });
+
+    const totalEarnings = earningsTransactions.reduce(
+      (sum, t) => sum + (t.talentAmount || 0),
+      0
+    );
+
     return {
       totalProposalsSent,
       totalProposalsAccepted,
       totalProposalsRefused,
+      totalEarnings,
     };
   }
 }

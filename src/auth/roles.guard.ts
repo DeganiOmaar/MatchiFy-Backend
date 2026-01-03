@@ -3,7 +3,7 @@ import { Reflector } from '@nestjs/core';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(private reflector: Reflector) { }
 
   canActivate(context: ExecutionContext): boolean {
     const requiredRoles = this.reflector.get<string[]>('roles', context.getHandler());
@@ -13,7 +13,10 @@ export class RolesGuard implements CanActivate {
     const user = request.user;
 
     if (!user) throw new ForbiddenException('No user found');
-    if (!requiredRoles.includes(user.role)) {
+
+    // Case insensitive check
+    const hasRole = requiredRoles.some(role => role.toLowerCase() === user.role.toLowerCase());
+    if (!hasRole) {
       throw new ForbiddenException(`Access denied for role: ${user.role}`);
     }
 

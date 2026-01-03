@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -17,11 +18,13 @@ import { FavoritesModule } from './favorites/favorites.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { ContractModule } from './contract/contract.module';
 import { AiModule } from './ai/ai.module';
+import { PaymentModule } from './payment/payment.module';
+import { WalletModule } from './wallet/wallet.module';
 
 @Module({
   imports: [
-    
-    
+
+
     ConfigModule.forRoot({ isGlobal: true }),
     MongooseModule.forRootAsync({
       inject: [ConfigService],
@@ -31,7 +34,7 @@ import { AiModule } from './ai/ai.module';
     }),
 
 
-    AuthModule ,
+    AuthModule,
     UserModule,
     TalentModule,
     RecruiterModule,
@@ -44,8 +47,16 @@ import { AiModule } from './ai/ai.module';
     AlertsModule,
     ContractModule,
     AiModule,
+    PaymentModule,
+    WalletModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(LoggerMiddleware)
+      .forRoutes('*');
+  }
+}

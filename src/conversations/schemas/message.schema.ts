@@ -34,6 +34,9 @@ export class Message extends Document {
 
   @Prop({ type: Boolean, default: false })
   isContractMessage?: boolean;
+
+  @Prop({ type: String, ref: 'Deliverable', index: true })
+  deliverableId?: string;
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);

@@ -37,11 +37,27 @@ export class Mission extends Document {
 
   @Prop({
     type: String,
-    enum: ['in_progress', 'started', 'completed'],
+    enum: ['in_progress', 'started', 'completed', 'paid'],
     default: 'in_progress',
     index: true,
   })
   status: string;
+
+  @Prop({
+    type: String,
+    enum: ['unpaid', 'pending', 'paid', 'refunded'],
+    default: 'unpaid',
+  })
+  paymentStatus: string;
+
+  @Prop({ type: String })
+  paymentTransactionId?: string;
+
+  @Prop({ type: Date })
+  completedAt?: Date;
+
+  @Prop({ type: String })
+  assignedTalentId?: string;
 }
 
 export const MissionSchema = SchemaFactory.createForClass(Mission);

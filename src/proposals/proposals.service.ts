@@ -35,7 +35,7 @@ export class ProposalsService {
     private readonly conversationsService: ConversationsService,
     private readonly alertsService: AlertsService,
     private readonly aiProposalMatchService: AiProposalMatchService,
-  ) {}
+  ) { }
 
   async create(
     createProposalDto: CreateProposalDto,
@@ -98,10 +98,10 @@ export class ProposalsService {
 
     const saved = await proposal.save();
     await this.missionsService.incrementProposalCount(proposal.missionId, 1);
-    
+
     // Populate talent information in the response
     const talentUser = await this.userService.findById(talent.id);
-    
+
     // Create alert for recruiter (mission owner)
     try {
       const talentFullName = talent.fullName || talentUser?.fullName || 'A talent';
@@ -121,14 +121,14 @@ export class ProposalsService {
       // Log error but don't fail proposal creation
       console.error('Failed to create alert for proposal:', error);
     }
-    
+
     return {
       ...saved.toObject(),
       talent: talentUser
         ? {
-            fullName: talentUser.fullName,
-            email: talentUser.email,
-          }
+          fullName: talentUser.fullName,
+          email: talentUser.email,
+        }
         : null,
     };
   }
@@ -137,25 +137,25 @@ export class ProposalsService {
     talentId: string,
     filters?: { status?: string; archived?: boolean }
   ): Promise<any[]> {
-    const query: any = { 
+    const query: any = {
       talentId,
       deletedByTalent: { $ne: true }
     };
-    
+
     if (filters?.status) {
       query.status = filters.status;
     }
-    
+
     if (filters?.archived !== undefined) {
       query.archived = filters.archived;
     }
-    
+
     const proposals = await this.proposalModel
       .find(query)
       .sort({ createdAt: -1 })
       .lean()
       .exec();
-    
+
     // Populate talent information for each proposal
     return Promise.all(
       proposals.map(async (proposal) => {
@@ -164,9 +164,9 @@ export class ProposalsService {
           ...proposal,
           talent: talent
             ? {
-                fullName: talent.fullName,
-                email: talent.email,
-              }
+              fullName: talent.fullName,
+              email: talent.email,
+            }
             : null,
         };
       })
@@ -193,7 +193,7 @@ export class ProposalsService {
 
     // Exclude proposals archived by recruiter (we want all proposals for stats)
     // But we still exclude those deleted by talent
-    
+
     const proposals = await this.proposalModel
       .find(query)
       .lean()
@@ -207,17 +207,17 @@ export class ProposalsService {
     missionId?: string
   ): Promise<any[]> {
     const query: any = { recruiterId };
-    
+
     if (missionId) {
       query.missionId = missionId;
     }
-    
+
     const proposals = await this.proposalModel
       .find(query)
       .sort({ createdAt: -1 })
       .lean()
       .exec();
-    
+
     // Populate talent information for each proposal
     return Promise.all(
       proposals.map(async (proposal) => {
@@ -226,9 +226,9 @@ export class ProposalsService {
           ...proposal,
           talent: talent
             ? {
-                fullName: talent.fullName,
-                email: talent.email,
-              }
+              fullName: talent.fullName,
+              email: talent.email,
+            }
             : null,
         };
       })
@@ -241,28 +241,28 @@ export class ProposalsService {
       .sort({ createdAt: -1 })
       .lean()
       .exec();
-    
+
     // Group by missionId
     const grouped: { [key: string]: any[] } = {};
-    
+
     for (const proposal of proposals) {
       const missionId = proposal.missionId;
       if (!grouped[missionId]) {
         grouped[missionId] = [];
       }
-      
+
       const talent = await this.userService.findById(proposal.talentId);
       grouped[missionId].push({
         ...proposal,
         talent: talent
           ? {
-              fullName: talent.fullName,
-              email: talent.email,
-            }
+            fullName: talent.fullName,
+            email: talent.email,
+          }
           : null,
       });
     }
-    
+
     return grouped;
   }
 
@@ -307,7 +307,7 @@ export class ProposalsService {
     counts.forEach((item) => {
       result[item._id] = item.count;
     });
-    
+
     return result;
   }
 
@@ -339,9 +339,9 @@ export class ProposalsService {
       ...proposal,
       talent: talent
         ? {
-            fullName: talent.fullName,
-            email: talent.email,
-          }
+          fullName: talent.fullName,
+          email: talent.email,
+        }
         : null,
     };
   }
@@ -363,7 +363,7 @@ export class ProposalsService {
     }
 
     const previousStatus = proposal.status;
-    
+
     // Validate rejection reason
     if (updateProposalStatusDto.status === ProposalStatus.REFUSED) {
       if (!updateProposalStatusDto.rejectionReason || updateProposalStatusDto.rejectionReason.trim() === '') {
@@ -374,6 +374,20 @@ export class ProposalsService {
 
     proposal.status = updateProposalStatusDto.status;
     const saved = await proposal.save();
+
+    // Start mission when proposal is accepted
+    if (updateProposalStatusDto.status === ProposalStatus.ACCEPTED) {
+      try {
+        await this.missionsService.assignTalentAndStart(
+          proposal.missionId,
+          proposal.talentId,
+          recruiterId
+        );
+      } catch (error) {
+        console.error('Failed to start mission:', error);
+        // Don't fail the request, but log it. Data might be inconsistent though.
+      }
+    }
 
     // Create conversation when proposal is accepted
     if (
@@ -440,9 +454,9 @@ export class ProposalsService {
       ...saved.toObject(),
       talent: talent
         ? {
-            fullName: talent.fullName,
-            email: talent.email,
-          }
+          fullName: talent.fullName,
+          email: talent.email,
+        }
         : null,
     };
   }
@@ -470,9 +484,9 @@ export class ProposalsService {
       ...saved.toObject(),
       talent: talent
         ? {
-            fullName: talent.fullName,
-            email: talent.email,
-          }
+          fullName: talent.fullName,
+          email: talent.email,
+        }
         : null,
     };
   }
@@ -501,9 +515,9 @@ export class ProposalsService {
       ...saved.toObject(),
       talent: talent
         ? {
-            fullName: talent.fullName,
-            email: talent.email,
-          }
+          fullName: talent.fullName,
+          email: talent.email,
+        }
         : null,
     };
   }
@@ -547,11 +561,11 @@ export class ProposalsService {
           ...proposal,
           talent: talent
             ? {
-                fullName: talent.fullName,
-                email: talent.email,
-                skills: talent.skills,
-                mainTalent: talent.talent,
-              }
+              fullName: talent.fullName,
+              email: talent.email,
+              skills: talent.skills,
+              mainTalent: talent.talent,
+            }
             : null,
         };
       })
@@ -593,7 +607,7 @@ export class ProposalsService {
 
     // Find all missions by this recruiter matching the title
     const missions = await this.missionsService.findAllByRecruiter(recruiterId);
-    
+
     // Filter missions by title (case-insensitive partial match)
     const matchingMissions = missions.filter((mission: any) =>
       mission.title?.toLowerCase().includes(titleQuery.toLowerCase())
@@ -616,9 +630,9 @@ export class ProposalsService {
               ...proposal,
               talent: talent
                 ? {
-                    fullName: talent.fullName,
-                    email: talent.email,
-                  }
+                  fullName: talent.fullName,
+                  email: talent.email,
+                }
                 : null,
             };
           })

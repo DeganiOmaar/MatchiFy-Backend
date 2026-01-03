@@ -18,5 +18,11 @@ export class TalentStatsDto {
     example: 3,
   })
   totalProposalsRefused: number;
+
+  @ApiProperty({
+    description: 'Total earnings in the specified period',
+    example: 1500.50,
+  })
+  totalEarnings: number;
 }
 

@@ -13,6 +13,7 @@ import { AuthModule } from '../auth/auth.module';
 import { ProposalsModule } from '../proposals/proposals.module';
 import { FavoritesModule } from '../favorites/favorites.module';
 import { AiModule } from '../ai/ai.module';
+import { PaymentModule } from '../payment/payment.module';
 
 @Module({
   imports: [
@@ -24,10 +25,11 @@ import { AiModule } from '../ai/ai.module';
     forwardRef(() => AuthModule),
     forwardRef(() => ProposalsModule),
     forwardRef(() => FavoritesModule),
+    forwardRef(() => PaymentModule),
   ],
   controllers: [MissionsController],
   providers: [MissionsService, MissionsEventsService, BestMatchService],
   exports: [MissionsService, BestMatchService],
 })
-export class MissionsModule {}
+export class MissionsModule { }
 
