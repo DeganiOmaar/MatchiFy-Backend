@@ -39,4 +39,58 @@ export class EmailService {
 
     await this.transporter.sendMail(mailOptions);
   }
+
+  async sendInterviewInvitation(options: {
+    to: string;
+    talentName?: string;
+    recruiterName?: string;
+    missionTitle?: string;
+    scheduledAt: Date;
+    joinUrl: string;
+    provider: 'ZOOM' | 'MEET';
+  }): Promise<void> {
+    const from = this.configService.get<string>('MAIL_FROM');
+
+    const dateStr = options.scheduledAt.toLocaleString('fr-FR', {
+      timeZone: 'UTC',
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const subject = `Invitation à une interview - ${
+      options.missionTitle || 'Nouvelle mission'
+    }`;
+
+    const html = `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2>Invitation à une interview</h2>
+          <p>Bonjour ${options.talentName || ''},</p>
+          <p>Vous avez été invité(e) à une interview pour la mission <strong>${
+            options.missionTitle || ''
+          }</strong>.</p>
+          <p><strong>Date et heure :</strong> ${dateStr} (UTC)</p>
+          <p><strong>Plateforme :</strong> ${options.provider}</p>
+          <p>
+            <a href="${options.joinUrl}" style="background-color:#0b5cff;color:#fff;padding:10px 16px;text-decoration:none;border-radius:4px;">
+              Rejoindre la réunion
+            </a>
+          </p>
+          <p>Si le bouton ne fonctionne pas, copiez/collez ce lien dans votre navigateur :</p>
+          <p><a href="${options.joinUrl}">${options.joinUrl}</a></p>
+          <p>Cordialement,<br/>${
+            options.recruiterName || 'Votre recruteur'
+          }</p>
+        </div>
+      `;
+
+    await this.transporter.sendMail({
+      from,
+      to: options.to,
+      subject,
+      html,
+    });
+  }
 }
