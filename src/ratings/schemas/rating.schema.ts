@@ -20,6 +20,9 @@ export class Rating extends Document {
   @Prop({ type: Number, required: true, min: 1, max: 5 })
   score: number;
 
+  @Prop({ type: Boolean, required: true })
+  recommended: boolean;
+
   @Prop({ type: String, required: false, maxlength: 1000 })
   comment?: string;
 

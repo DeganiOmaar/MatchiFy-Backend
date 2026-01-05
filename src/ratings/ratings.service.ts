@@ -27,6 +27,7 @@ export class RatingsService {
 
     const update: Partial<Rating> = {
       score: dto.score,
+      recommended: dto.recommended,
       comment: dto.comment,
       tags: dto.tags || [],
     };

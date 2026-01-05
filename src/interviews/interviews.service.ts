@@ -203,8 +203,9 @@ export class InterviewsService {
       );
     }
 
-    interview.status = 'CANCELLED';
-    return interview.save();
+    // Suppression physique de l'interview
+    await interview.deleteOne();
+    return interview;
   }
 }
 

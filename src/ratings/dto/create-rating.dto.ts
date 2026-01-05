@@ -1,5 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, MaxLength, IsArray } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsNumber,
+  Min,
+  Max,
+  MaxLength,
+  IsArray,
+  IsBoolean,
+} from 'class-validator';
 
 export class CreateRatingDto {
   @ApiProperty({
@@ -29,6 +39,13 @@ export class CreateRatingDto {
   @Min(1)
   @Max(5)
   score: number;
+
+  @ApiProperty({
+    description: 'Indique si le talent est recommandé par le recruteur',
+    example: true,
+  })
+  @IsBoolean()
+  recommended: boolean;
 
   @ApiProperty({
     description: 'Commentaire libre du recruteur',
