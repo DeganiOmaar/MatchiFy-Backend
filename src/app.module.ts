@@ -14,6 +14,7 @@ import { SkillModule } from './skill/skill.module';
 import { ProposalsModule } from './proposals/proposals.module';
 import { ConversationsModule } from './conversations/conversations.module';
 import { FavoritesModule } from './favorites/favorites.module';
+import { RecruiterFavoritesModule } from './recruiter-favorites/recruiter-favorites.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { ContractModule } from './contract/contract.module';
 import { AiModule } from './ai/ai.module';
@@ -43,6 +44,7 @@ import { InterviewsModule } from './interviews/interviews.module';
     ProposalsModule,
     ConversationsModule,
     FavoritesModule,
+    RecruiterFavoritesModule,
     AlertsModule,
     ContractModule,
     AiModule,

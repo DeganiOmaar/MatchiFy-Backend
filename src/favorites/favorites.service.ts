@@ -107,7 +107,9 @@ export class FavoritesService {
 
     const statusMap = new Map<string, boolean>();
     missionIds.forEach((id) => statusMap.set(id, false));
-    favorites.forEach((f) => statusMap.set(f.missionId, true));
+    favorites.forEach((f) => {
+      statusMap.set(f.missionId, true);
+    });
 
     return statusMap;
   }
