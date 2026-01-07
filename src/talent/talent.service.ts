@@ -105,20 +105,36 @@ export class TalentService {
         throw new BadRequestException('Maximum 10 skills allowed');
       }
 
-      // Process skills: find or create each skill
+      // Process skills: accept both skill IDs and skill names
       const skillIds: string[] = [];
-      for (const skillName of updateDto.skills) {
-        if (typeof skillName === 'string' && skillName.trim()) {
+      for (const skillInput of updateDto.skills) {
+        if (typeof skillInput === 'string' && skillInput.trim()) {
+          const trimmedInput = skillInput.trim();
+          
           try {
-            const skill = await this.skillService.findOrCreateSkill(
-              skillName.trim(),
-              userId
-            );
-            if (skill && skill._id) {
-              skillIds.push(skill._id.toString());
+            // Check if input is a valid MongoDB ObjectId (24-character hex string)
+            const isObjectId = /^[0-9a-fA-F]{24}$/.test(trimmedInput);
+            
+            if (isObjectId) {
+              // Input is a skill ID - verify it exists
+              const skill = await this.skillService.findById(trimmedInput);
+              if (skill && skill._id) {
+                skillIds.push(skill._id.toString());
+              } else {
+                throw new BadRequestException(`Skill with ID ${trimmedInput} not found`);
+              }
+            } else {
+              // Input is a skill name - find or create
+              const skill = await this.skillService.findOrCreateSkill(
+                trimmedInput,
+                userId
+              );
+              if (skill && skill._id) {
+                skillIds.push(skill._id.toString());
+              }
             }
           } catch (error) {
-            throw new BadRequestException(`Invalid skill: ${skillName}`);
+            throw new BadRequestException(`Invalid skill: ${skillInput} - ${error.message}`);
           }
         }
       }
