@@ -20,6 +20,7 @@ import { ContractModule } from './contract/contract.module';
 import { AiModule } from './ai/ai.module';
 import { RatingsModule } from './ratings/ratings.module';
 import { InterviewsModule } from './interviews/interviews.module';
+import { OffersModule } from './offers/offers.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { InterviewsModule } from './interviews/interviews.module';
     AiModule,
     RatingsModule,
     InterviewsModule,
+    OffersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

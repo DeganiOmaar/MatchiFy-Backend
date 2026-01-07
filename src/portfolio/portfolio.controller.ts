@@ -30,7 +30,7 @@ import { PortfolioResponseDto } from './dto/portfolio-response.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { portfolioMediaUploadOptions } from '../common/utils/file-upload.config';
+import { portfolioMediaUploadOptions } from '../common/utils/portfolio-media-upload.config';
 
 @ApiTags('portfolio')
 @Controller('talent/portfolio')

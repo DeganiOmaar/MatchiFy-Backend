@@ -42,3 +42,5 @@ ProfileAnalysisSchema.index({ talentId: 1, createdAt: -1 });
 
 
 
+
+

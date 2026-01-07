@@ -55,14 +55,29 @@ export class ContractService {
       fieldErrors.title = 'Title is required';
     }
 
-    if (!createContractDto.content || createContractDto.content.trim() === '') {
-      missingFields.push('content');
-      fieldErrors.content = 'Content is required';
-    }
-
     if (!createContractDto.recruiterSignature || createContractDto.recruiterSignature.trim() === '') {
       missingFields.push('recruiterSignature');
       fieldErrors.recruiterSignature = 'Recruiter signature is required';
+    }
+
+    if (!createContractDto.scope || createContractDto.scope.trim() === '') {
+      missingFields.push('scope');
+      fieldErrors.scope = 'Project Scope & Deliverables is required';
+    }
+
+    if (!createContractDto.budget || createContractDto.budget.trim() === '') {
+      missingFields.push('budget');
+      fieldErrors.budget = 'Compensation & Payment Terms is required';
+    }
+
+    if (!createContractDto.startDate) {
+      missingFields.push('startDate');
+      fieldErrors.startDate = 'Start date is required';
+    }
+
+    if (!createContractDto.endDate) {
+      missingFields.push('endDate');
+      fieldErrors.endDate = 'End date is required';
     }
 
     if (missingFields.length > 0) {
@@ -94,9 +109,18 @@ export class ContractService {
       throw new NotFoundException('Recruiter not found');
     }
 
+    // Generate contract content
+    const generatedContent = this.generateContractTemplate(
+      createContractDto,
+      recruiter,
+      talent
+    );
+
     // Create contract
     const contract = new this.contractModel({
       ...createContractDto,
+      content: generatedContent,
+      paymentDetails: createContractDto.budget, // Map budget to paymentDetails for backward compatibility/PDF
       recruiterId,
       status: ContractStatus.SENT_TO_TALENT,
     });
@@ -359,71 +383,77 @@ export class ContractService {
 
       // Title
       doc.fontSize(20).text(contract.title, { align: 'center' });
-      doc.moveDown();
-
-      // Mission info
-      doc.fontSize(14).text('Informations de la mission:', { underline: true });
-      doc.fontSize(12).text(`Mission ID: ${contract.missionId}`);
-      doc.moveDown();
-
-      // Parties
-      doc.fontSize(14).text('Parties:', { underline: true });
-      doc.fontSize(12).text(`Recruteur: ${recruiter.fullName}`);
-      doc.text(`Email: ${recruiter.email}`);
-      doc.moveDown();
-      doc.text(`Talent: ${talent.fullName}`);
-      doc.text(`Email: ${talent.email}`);
-      doc.moveDown();
-
-      // Contract content
-      doc.fontSize(14).text('Termes du contrat:', { underline: true });
-      doc.fontSize(12).text(contract.content, { align: 'justify' });
-      doc.moveDown();
-
-      // Payment details
-      if (contract.paymentDetails) {
-        doc.fontSize(14).text('Détails de paiement:', { underline: true });
-        doc.fontSize(12).text(contract.paymentDetails);
-        doc.moveDown();
-      }
-
-      // Dates
-      if (contract.startDate || contract.endDate) {
-        doc.fontSize(14).text('Dates:', { underline: true });
-        if (contract.startDate) {
-          doc.fontSize(12).text(`Date de début: ${new Date(contract.startDate).toLocaleDateString('fr-FR')}`);
-        }
-        if (contract.endDate) {
-          doc.fontSize(12).text(`Date de fin: ${new Date(contract.endDate).toLocaleDateString('fr-FR')}`);
-        }
-        doc.moveDown();
-      }
-
-      // Signatures section
-      doc.moveDown();
-      doc.fontSize(14).text('Signatures:', { underline: true });
-      doc.moveDown();
-
-      // Recruiter signature
-      doc.fontSize(12).text('Recruteur:');
-      if (contract.recruiterSignature) {
-        const signatureBuffer = Buffer.from(
-          contract.recruiterSignature.replace(/^data:image\/\w+;base64,/, ''),
-          'base64'
-        );
-        doc.image(signatureBuffer, {
-          width: 200,
-          height: 100,
-        });
-      }
-      doc.text(`\n${recruiter.fullName}`);
-      doc.text(`Date: ${new Date().toLocaleDateString('fr-FR')}`);
       doc.moveDown(2);
 
-      // Talent signature placeholder
-      doc.fontSize(12).text('Talent:');
-      doc.text('Signature en attente');
-      doc.text(`\n${talent.fullName}`);
+      // Contract content
+      doc.fontSize(11).text(contract.content, { align: 'justify', lineGap: 2 });
+      doc.moveDown(2);
+
+      // Payment details and Dates side by side
+      const leftX = 50;
+      const rightX = 300;
+      const detailsStartY = doc.y;
+
+      // Payment details (left)
+      if (contract.paymentDetails) {
+        doc.fontSize(13).text('Payment Details:', leftX, detailsStartY, { underline: true });
+        const paymentY = doc.y + 5;
+        doc.fontSize(11).text(contract.paymentDetails, leftX, paymentY);
+      }
+
+      // Dates (right)
+      if (contract.startDate || contract.endDate) {
+        doc.fontSize(13).text('Dates:', rightX, detailsStartY, { underline: true });
+        let dateY = detailsStartY + 20;
+        if (contract.startDate) {
+          doc.fontSize(11).text(`Start: ${new Date(contract.startDate).toLocaleDateString('en-US')}`, rightX, dateY);
+          dateY += 15;
+        }
+        if (contract.endDate) {
+          doc.fontSize(11).text(`End: ${new Date(contract.endDate).toLocaleDateString('en-US')}`, rightX, dateY);
+        }
+      }
+      
+      // Move down after details section
+      doc.y = detailsStartY + 80;
+      doc.moveDown(2);
+
+      // Signatures section - side by side
+      doc.fontSize(13).text('Signatures:', { underline: true });
+      doc.moveDown(1);
+
+      const leftColumnX = 50;
+      const rightColumnX = 300;
+      const signatureStartY = doc.y;
+
+      // Recruiter signature (left)
+      doc.fontSize(11).text('Recruiter:', leftColumnX, signatureStartY);
+      const sigImageY = signatureStartY + 18;
+      
+      if (contract.recruiterSignature) {
+        try {
+          const signatureBuffer = Buffer.from(
+            contract.recruiterSignature.replace(/^data:image\/\w+;base64,/, ''),
+            'base64'
+          );
+          doc.image(signatureBuffer, leftColumnX, sigImageY, {
+            fit: [150, 60],
+          });
+        } catch (error) {
+          console.error('Error rendering recruiter signature:', error);
+          doc.fontSize(10).text('[Signature error]', leftColumnX, sigImageY);
+        }
+      }
+      
+      const nameY = sigImageY + 65;
+      doc.fontSize(10).text(recruiter.fullName, leftColumnX, nameY);
+      doc.fontSize(9).text(`Date: ${new Date().toLocaleDateString('en-US')}`, leftColumnX, nameY + 12);
+
+      // Talent signature placeholder (right)
+      doc.fontSize(11).text('Talent:', rightColumnX, signatureStartY);
+      doc.fontSize(10).fillColor('#666').text('Signature pending', rightColumnX, sigImageY);
+      doc.fillColor('black');
+      doc.fontSize(10).text(talent.fullName, rightColumnX, nameY);
       doc.moveDown();
 
       doc.end();
@@ -453,84 +483,95 @@ export class ContractService {
 
       // Title
       doc.fontSize(20).text(contract.title, { align: 'center' });
-      doc.fillColor('green');
-      doc.fontSize(14).text('CONTRAT SIGNÉ', { align: 'center' });
-      doc.fillColor('black');
-      doc.moveDown();
-
-      // Mission info
-      doc.fontSize(14).text('Informations de la mission:', { underline: true });
-      doc.fontSize(12).text(`Mission ID: ${contract.missionId}`);
-      doc.moveDown();
-
-      // Parties
-      doc.fontSize(14).text('Parties:', { underline: true });
-      doc.fontSize(12).text(`Recruteur: ${recruiter.fullName}`);
-      doc.text(`Email: ${recruiter.email}`);
-      doc.moveDown();
-      doc.text(`Talent: ${talent.fullName}`);
-      doc.text(`Email: ${talent.email}`);
-      doc.moveDown();
-
-      // Contract content
-      doc.fontSize(14).text('Termes du contrat:', { underline: true });
-      doc.fontSize(12).text(contract.content, { align: 'justify' });
-      doc.moveDown();
-
-      // Payment details
-      if (contract.paymentDetails) {
-        doc.fontSize(14).text('Détails de paiement:', { underline: true });
-        doc.fontSize(12).text(contract.paymentDetails);
-        doc.moveDown();
-      }
-
-      // Dates
-      if (contract.startDate || contract.endDate) {
-        doc.fontSize(14).text('Dates:', { underline: true });
-        if (contract.startDate) {
-          doc.fontSize(12).text(`Date de début: ${new Date(contract.startDate).toLocaleDateString('fr-FR')}`);
-        }
-        if (contract.endDate) {
-          doc.fontSize(12).text(`Date de fin: ${new Date(contract.endDate).toLocaleDateString('fr-FR')}`);
-        }
-        doc.moveDown();
-      }
-
-      // Signatures section
-      doc.moveDown();
-      doc.fontSize(14).text('Signatures:', { underline: true });
-      doc.moveDown();
-
-      // Recruiter signature
-      doc.fontSize(12).text('Recruteur:');
-      if (contract.recruiterSignature) {
-        const signatureBuffer = Buffer.from(
-          contract.recruiterSignature.replace(/^data:image\/\w+;base64,/, ''),
-          'base64'
-        );
-        doc.image(signatureBuffer, {
-          width: 200,
-          height: 100,
-        });
-      }
-      doc.text(`\n${recruiter.fullName}`);
-      doc.text(`Date: ${new Date(contract.createdAt).toLocaleDateString('fr-FR')}`);
       doc.moveDown(2);
 
-      // Talent signature
-      doc.fontSize(12).text('Talent:');
-      if (contract.talentSignature) {
-        const signatureBuffer = Buffer.from(
-          contract.talentSignature.replace(/^data:image\/\w+;base64,/, ''),
-          'base64'
-        );
-        doc.image(signatureBuffer, {
-          width: 200,
-          height: 100,
-        });
+      // Contract content
+      doc.fontSize(11).text(contract.content, { align: 'justify', lineGap: 2 });
+      doc.moveDown(2);
+
+      // Payment details and Dates side by side
+      const leftX = 50;
+      const rightX = 300;
+      const detailsStartY = doc.y;
+
+      // Payment details (left)
+      if (contract.paymentDetails) {
+        doc.fontSize(13).text('Payment Details:', leftX, detailsStartY, { underline: true });
+        const paymentY = doc.y + 5;
+        doc.fontSize(11).text(contract.paymentDetails, leftX, paymentY);
       }
-      doc.text(`\n${talent.fullName}`);
-      doc.text(`Date: ${new Date().toLocaleDateString('fr-FR')}`);
+
+      // Dates (right)
+      if (contract.startDate || contract.endDate) {
+        doc.fontSize(13).text('Dates:', rightX, detailsStartY, { underline: true });
+        let dateY = detailsStartY + 20;
+        if (contract.startDate) {
+          doc.fontSize(11).text(`Start: ${new Date(contract.startDate).toLocaleDateString('en-US')}`, rightX, dateY);
+          dateY += 15;
+        }
+        if (contract.endDate) {
+          doc.fontSize(11).text(`End: ${new Date(contract.endDate).toLocaleDateString('en-US')}`, rightX, dateY);
+        }
+      }
+      
+      // Move down after details section
+      doc.y = detailsStartY + 80;
+      doc.moveDown(2);
+
+      // Signatures section - side by side
+      doc.fontSize(13).text('Signatures:', { underline: true });
+      doc.moveDown(1);
+
+      const leftColumnX = 50;
+      const rightColumnX = 300;
+      const signatureStartY = doc.y;
+
+      // Recruiter signature (left)
+      doc.fontSize(11).text('Recruiter:', leftColumnX, signatureStartY);
+      const sigImageY = signatureStartY + 18;
+      
+      if (contract.recruiterSignature) {
+        try {
+          const signatureBuffer = Buffer.from(
+            contract.recruiterSignature.replace(/^data:image\/\w+;base64,/, ''),
+            'base64'
+          );
+          doc.image(signatureBuffer, leftColumnX, sigImageY, {
+            fit: [150, 60],
+          });
+        } catch (error) {
+          console.error('Error rendering recruiter signature:', error);
+          doc.fontSize(10).text('[Signature error]', leftColumnX, sigImageY);
+        }
+      }
+      
+      const nameY = sigImageY + 65;
+      doc.fontSize(10).text(recruiter.fullName, leftColumnX, nameY);
+      doc.fontSize(9).text(`Date: ${new Date(contract.createdAt).toLocaleDateString('en-US')}`, leftColumnX, nameY + 12);
+
+      // Talent signature (right)
+      doc.fontSize(11).text('Talent:', rightColumnX, signatureStartY);
+      
+      if (contract.talentSignature) {
+        try {
+          const signatureBuffer = Buffer.from(
+            contract.talentSignature.replace(/^data:image\/\w+;base64,/, ''),
+            'base64'
+          );
+          doc.image(signatureBuffer, rightColumnX, sigImageY, {
+            fit: [150, 60],
+          });
+        } catch (error) {
+          console.error('Error rendering talent signature:', error);
+          doc.fontSize(10).text('[Signature error]', rightColumnX, sigImageY);
+        }
+      } else {
+        doc.fontSize(10).fillColor('#666').text('Signature pending', rightColumnX, sigImageY);
+        doc.fillColor('black');
+      }
+      
+      doc.fontSize(10).text(talent.fullName, rightColumnX, nameY);
+      doc.fontSize(9).text(`Date: ${new Date().toLocaleDateString('en-US')}`, rightColumnX, nameY + 12);
       doc.moveDown();
 
       doc.end();
@@ -542,6 +583,43 @@ export class ContractService {
 
       stream.on('error', reject);
     });
+  }
+
+  private generateContractTemplate(
+    dto: CreateContractDto,
+    recruiter: any,
+    talent: any
+  ): string {
+    const startDate = dto.startDate ? new Date(dto.startDate).toLocaleDateString('en-US') : 'N/A';
+    const endDate = dto.endDate ? new Date(dto.endDate).toLocaleDateString('en-US') : 'N/A';
+
+    return `1. Services to be Performed
+The Client engages the Contractor to perform services as an independent contractor. The specific details, scope, and deliverables for each assignment will be defined in separate, written Statements of Work (SOWs), which will be attached as Exhibit A, Exhibit B, etc., and incorporated into this main Agreement. The nature of services can range from IT development to video editing, as detailed in the relevant SOW.
+
+2. Key Terms to be Assigned and Agreed Upon
+For each specific project (SOW), the following three key points must be explicitly defined and agreed to in writing by both the Client and the Contractor:
+* Project Scope & Deliverables: ${dto.scope}
+* Schedule & Deadlines: The project starts on ${startDate} and is expected to be completed by ${endDate}.
+* Compensation & Payment Terms: ${dto.budget}
+
+3. Independent Contractor Status
+The Contractor is an independent contractor and not an employee or agent of the Client. The Contractor controls the method of performing services and is responsible for their own taxes and insurance.
+
+4. Compensation and Expenses
+Payment is based on the applicable SOW. The Contractor is responsible for their expenses unless the SOW specifies reimbursable ones.
+
+5. Confidentiality 
+The Contractor agrees not to disclose or use the Client's confidential information except for service performance.
+
+6. Ownership of Work Product
+All work created for the Client under this Agreement becomes the Client's sole property upon full payment.
+
+7. Term and Termination
+The Agreement is effective upon signing and lasts until SOWs are completed, unless terminated earlier. Either party can terminate with written notice or immediately for a material breach.
+
+8. Entire Agreement
+This document and SOWs form the complete agreement, superseding prior discussions. Modifications require a written amendment signed by both parties.
+`;
   }
 }
 
